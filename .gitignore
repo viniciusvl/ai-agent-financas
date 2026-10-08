@@ -1,0 +1,26 @@
+# Segredos — NUNCA versionar
+.env
+.env.*
+!.env.example
+secrets/*
+!secrets/.gitkeep
+
+# Dados locais
+data/*
+!data/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Agent loop (logs locais das sessões)
+.agent/logs/
+
+# IDE
+.vscode/
+.idea/
