@@ -4,6 +4,7 @@ escrita (extração → confirmação → planilha) | leitura (consulta) | outro
 Spec: specs/tasks/T16-bot-flow-v2.md
 """
 
+import asyncio
 import html
 import logging
 from collections.abc import Callable
@@ -13,12 +14,18 @@ from zoneinfo import ZoneInfo
 
 from app.extractor import ExtractionError
 from app.messages import (
+    MSG_CALLBACK_CANCELLED,
+    MSG_CALLBACK_SAVED,
+    MSG_CANCELLED,
+    MSG_EXPIRED,
     MSG_EXTRACTION_FAILED,
     MSG_HELP,
     MSG_LEITURA_FAILED,
     MSG_NOT_EXPENSE,
+    MSG_NOT_OWNER,
     MSG_OUTRO,
     MSG_ROUTER_FAILED,
+    MSG_SAVE_FAILED,
     MSG_SAVED_HEADER,
     MSG_TRANSCRIPTION,
     MSG_TRANSCRIPTION_FAILED,
@@ -27,6 +34,7 @@ from app.messages import (
 from app.payment import MetodoPagamento, Pagamento
 from app.queries import ReadError, format_valor
 from app.router import Intencao, RouterError
+from app.sheets import SheetsError
 from app.telegram_api import confirmation_keyboard
 
 logger = logging.getLogger(__name__)
@@ -128,7 +136,11 @@ class BotService:
             logger.exception("Erro ao processar update")
 
     async def _dispatch(self, update: dict[str, Any]) -> None:
-        """Roteia o update: só trata mensagens (texto/voz) de usuários autorizados."""
+        """Roteia o update: callbacks ou mensagens (texto/voz) autorizadas."""
+        callback = update.get("callback_query")
+        if callback:
+            await self._handle_callback(callback)
+            return
         message = update.get("message")
         if not message:
             return
@@ -232,3 +244,72 @@ class BotService:
             await self.telegram.send_message(chat_id, MSG_LEITURA_FAILED)
             return
         await self.telegram.send_message(chat_id, resposta)
+
+    async def _handle_callback(self, callback: dict[str, Any]) -> None:
+        """Trata `confirm:<id>` / `cancel:<id>` de um callback_query autorizado."""
+        callback_id = callback["id"]
+        user_id = (callback.get("from") or {}).get("id")
+        if user_id not in self.allowed_user_ids:
+            await self.telegram.answer_callback_query(
+                callback_id, MSG_UNAUTHORIZED.format(user_id=user_id)
+            )
+            return
+        data = callback.get("data") or ""
+        acao, _, pending_id = data.partition(":")
+        if acao not in {"confirm", "cancel"}:
+            await self.telegram.answer_callback_query(callback_id)
+            return
+        message = callback.get("message") or {}
+        chat_id = (message.get("chat") or {}).get("id")
+        message_id = message.get("message_id")
+        pendente = self.store.get(pending_id)
+        if pendente is None:
+            await self.telegram.answer_callback_query(callback_id, MSG_EXPIRED)
+            await self.telegram.edit_message_text(chat_id, message_id, MSG_EXPIRED)
+            return
+        if pendente.user_id != user_id:
+            await self.telegram.answer_callback_query(callback_id, MSG_NOT_OWNER)
+            return
+        if acao == "cancel":
+            self.store.delete(pending_id)
+            await self.telegram.edit_message_text(chat_id, message_id, MSG_CANCELLED)
+            await self.telegram.answer_callback_query(callback_id, MSG_CALLBACK_CANCELLED)
+            return
+        await self._confirmar(
+            callback_id, chat_id, message_id, pending_id, pendente, callback.get("from") or {}
+        )
+
+    async def _confirmar(
+        self,
+        callback_id: str,
+        chat_id: int,
+        message_id: Any,
+        pending_id: str,
+        pendente: Any,
+        sender: dict[str, Any],
+    ) -> None:
+        """Grava o pendente confirmado; em falha da planilha, mantém para nova tentativa."""
+        pagamento = pendente.expense
+        try:
+            await asyncio.to_thread(
+                self.writer.append_pagamento,
+                pagamento,
+                self._user_name(sender),
+                self.clock(),
+                pending_id,
+            )
+        except SheetsError:
+            logger.exception("Falha ao gravar na planilha")
+            await self.telegram.answer_callback_query(callback_id, MSG_SAVE_FAILED)
+            return
+        self.store.delete(pending_id)
+        await self.telegram.edit_message_text(chat_id, message_id, format_registrado(pagamento))
+        await self.telegram.answer_callback_query(callback_id, MSG_CALLBACK_SAVED)
+
+    @staticmethod
+    def _user_name(sender: dict[str, Any]) -> str:
+        """Nome do usuário para a planilha: nome completo, senão username, senão id."""
+        nome = " ".join(p for p in (sender.get("first_name"), sender.get("last_name")) if p)
+        if nome:
+            return nome
+        return sender.get("username") or str(sender.get("id"))
