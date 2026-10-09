@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from app.extractor import MSG_DEFAULT_NOT_EXPENSE, ExtractionError
+from app.extractor import MSG_DEFAULT_NOT_EXPENSE, MSG_INVALID_RESPONSE, ExtractionError
 from app.payment_extractor import PaymentExtractor
 from app.prompts import PAYMENT_EXTRACTION_SYSTEM_PROMPT
 from app.sheet_schema import SheetSchema
@@ -109,3 +109,55 @@ async def test_api_exception_is_chained_into_extraction_error(schema):
     with pytest.raises(ExtractionError) as info:
         await extractor.extract(TEXTO, RECEBIDO)
     assert isinstance(info.value.__cause__, RuntimeError)
+
+
+# --- subtarefa 2: parsing robusto e `is_pagamento` ---------------------------------------------
+
+
+def _payload(**overrides) -> str:
+    import json
+
+    data = {
+        "is_pagamento": True,
+        "valor_compra": 35,
+        "motivo": None,
+    }
+    data.update(overrides)
+    return json.dumps(data, ensure_ascii=False)
+
+
+@pytest.mark.parametrize("content", ["não é json", "", "   ", None, 42, "[1, 2]", "null"])
+async def test_invalid_content_returns_invalid_response(schema, content):
+    extractor, _ = _make(schema, content=content)
+    result = await extractor.extract(TEXTO, RECEBIDO)
+    assert result.pagamento is None
+    assert result.pergunta is None
+    assert result.erro == MSG_INVALID_RESPONSE
+
+
+async def test_code_fences_are_unwrapped(schema):
+    extractor, _ = _make(schema, content="```json\n" + _payload() + "\n```")
+    result = await extractor.extract(TEXTO, RECEBIDO)
+    assert result.erro is None
+
+
+async def test_response_without_choices_returns_invalid_response(schema):
+    completions = _Completions(content=_payload())
+    client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
+
+    async def _empty(**kwargs):
+        return SimpleNamespace(choices=[])
+
+    completions.create = _empty
+    extractor = PaymentExtractor(api_key="k", schema=schema, client=client)
+    assert (await extractor.extract(TEXTO, RECEBIDO)).erro == MSG_INVALID_RESPONSE
+
+
+async def test_not_a_payment_uses_reason_then_default(schema):
+    extractor, _ = _make(schema, content=_payload(is_pagamento=False, motivo="É um pedido."))
+    result = await extractor.extract(TEXTO, RECEBIDO)
+    assert result.pagamento is None
+    assert result.erro == "É um pedido."
+
+    extractor, _ = _make(schema, content=_payload(is_pagamento=False, motivo=None))
+    assert (await extractor.extract(TEXTO, RECEBIDO)).erro == MSG_DEFAULT_NOT_EXPENSE

@@ -4,6 +4,7 @@ O LLM extrai os campos; data/hora padrão vêm do timestamp da mensagem e o valo
 calculado pela aplicação (app/payment.py). Spec: specs/tasks/T13-payment-extractor.md
 """
 
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
@@ -12,7 +13,12 @@ from zoneinfo import ZoneInfo
 
 from openai import AsyncOpenAI
 
-from app.extractor import MSG_DEFAULT_NOT_EXPENSE, MSG_INVALID_RESPONSE, ExtractionError
+from app.extractor import (
+    MSG_DEFAULT_NOT_EXPENSE,
+    MSG_INVALID_RESPONSE,
+    ExpenseExtractor,
+    ExtractionError,
+)
 from app.payment import Pagamento
 from app.prompts import PAYMENT_EXTRACTION_SYSTEM_PROMPT
 from app.sheet_schema import SheetSchema
@@ -83,12 +89,47 @@ class PaymentExtractor:
         except Exception as exc:
             raise ExtractionError("Falha ao consultar a API do DeepSeek") from exc
 
+    @staticmethod
+    def _content_from_response(response: Any) -> Any:
+        """Extrai `choices[0].message.content` de forma defensiva (reaproveita o extrator v1).
+
+        Respostas sem `choices`, lista vazia, sem `message` ou sem `content` retornam `None`.
+        """
+        return ExpenseExtractor._content_from_response(response)
+
+    @staticmethod
+    def _parse_content(content: Any) -> dict[str, Any] | None:
+        """Interpreta o conteúdo do LLM como objeto JSON, ou `None` se inválido.
+
+        Reaproveita a remoção de cercas de código do extrator v1; conteúdo não-string, JSON
+        inválido ou que não seja objeto vira `None` (o chamador responde `MSG_INVALID_RESPONSE`).
+        """
+        if not isinstance(content, str):
+            return None
+        text = ExpenseExtractor._strip_code_fence(content)
+        if not text:
+            return None
+        try:
+            data = json.loads(text)
+        except (ValueError, TypeError):
+            return None
+        return data if isinstance(data, dict) else None
+
     async def extract(self, texto: str, recebido_em: datetime) -> ResultadoExtracao:
         if not texto or not texto.strip():
             return ResultadoExtracao(erro=MSG_DEFAULT_NOT_EXPENSE)
 
         local = recebido_em.astimezone(ZoneInfo(self.timezone))
         response = await self._call_api(self._build_messages(texto, local))
-        logger.debug("Resposta bruta do DeepSeek: %r", response)
-        # TODO(T13, subtarefa 2): parse robusto da resposta e tratamento de `is_pagamento`.
+        content = self._content_from_response(response)
+        logger.debug("Resposta bruta do DeepSeek: %r", content)
+
+        data = self._parse_content(content)
+        if data is None:
+            return ResultadoExtracao(erro=MSG_INVALID_RESPONSE)
+
+        if not data.get("is_pagamento"):
+            return ResultadoExtracao(erro=data.get("motivo") or MSG_DEFAULT_NOT_EXPENSE)
+
+        # TODO(T13, subtarefa 3): perguntas de dados faltantes, data/hora e montagem do Pagamento.
         return ResultadoExtracao()
