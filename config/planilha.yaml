@@ -6,6 +6,10 @@
 #        descricao, texto_original, valor_parcela, valor_primeira_parcela, id, usuario,
 #        registrado_em
 # tipo:  texto | data | hora | datahora | moeda | inteiro | enum
+#
+# Datas são GRAVADAS em ISO (aaaa-mm-dd): com USER_ENTERED o Sheets interpreta "08/10/2026"
+# conforme o locale da planilha (10 de agosto em en-US). ISO é inequívoco; a EXIBIÇÃO segue a
+# formatação da coluna no Sheets (ex.: Formatar > Número > Data → dd/mm/aaaa).
 aba: Gastos
 colunas:
   - nome: ID
@@ -14,7 +18,7 @@ colunas:
   - nome: Data
     campo: data
     tipo: data
-    formato: "%d/%m/%Y"
+    formato: "%Y-%m-%d"
   - nome: Hora
     campo: hora
     tipo: hora
@@ -47,7 +51,7 @@ colunas:
   - nome: Registrado em
     campo: registrado_em
     tipo: datahora
-    formato: "%d/%m/%Y %H:%M"
+    formato: "%Y-%m-%d %H:%M"
   - nome: Texto original
     campo: texto_original
     tipo: texto

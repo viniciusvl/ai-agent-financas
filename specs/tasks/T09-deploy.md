@@ -21,12 +21,12 @@ para o container em `127.0.0.1:8000`.
 ## Requisitos
 
 - **Dockerfile**: `FROM python:3.12-slim`; instala `requirements.txt` (sem cache); copia
-  `app/` e `scripts/`; cria usuário não-root (`USER app`); `EXPOSE 8000`;
+  `app/`, `scripts/` e `config/`; cria usuário não-root (`USER app`); `EXPOSE 8000`;
   `CMD ["uvicorn", "--factory", "app.main:create_app", "--host", "0.0.0.0", "--port", "8000"]`.
 - **.dockerignore**: `.env`, `.git`, `secrets`, `data`, `tests`, `.venv`, `__pycache__`, `.agent`.
 - **docker-compose.yml**: serviço `bot` com `build: .`, `env_file: .env`,
-  `ports: ["127.0.0.1:8000:8000"]`, volumes `./data:/app/data` e
-  `./secrets:/app/secrets:ro`, `restart: unless-stopped` e `healthcheck` chamando
+  `ports: ["127.0.0.1:8000:8000"]`, volumes `./data:/app/data`,
+  `./secrets:/app/secrets:ro` e `./config:/app/config:ro` (editar o formato da planilha sem rebuild), `restart: unless-stopped` e `healthcheck` chamando
   `http://127.0.0.1:8000/health` (com python/urllib — a imagem slim não tem curl).
 - **deploy/nginx/china-financas-bot.conf**: server 80 → `return 301 https://$host$request_uri`
   (exceto `/.well-known/acme-challenge/`); server `listen 443 ssl` com `server_name`,

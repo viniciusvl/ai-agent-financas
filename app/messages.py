@@ -23,3 +23,20 @@ MSG_EXPIRED = "⌛ Este registro expirou ou já foi processado. Envie o gasto no
 MSG_NOT_OWNER = "⛔ Apenas quem enviou o gasto pode confirmá-lo."
 MSG_CALLBACK_SAVED = "Registrado!"
 MSG_CALLBACK_CANCELLED = "Cancelado"
+
+# --- v2 -----------------------------------------------------------------------------------------
+MSG_PERGUNTA_VALOR = "💬 Qual foi o valor desse gasto?"
+MSG_PERGUNTA_PARCELAS = "💬 Em quantas parcelas foi essa compra?"
+MSG_ROUTER_FAILED = "😕 Não consegui processar sua mensagem agora. Tente novamente em instantes."
+MSG_OUTRO = (
+    "🤔 Não entendi se você quer <b>registrar</b> um gasto ou <b>consultar</b> seus gastos.\n\n"
+    "• Registrar: <i>paguei 80 kuai no táxi com WeChat</i>\n"
+    "• Consultar: <i>quanto gastei esta semana?</i>"
+)
+MSG_LEITURA_NAO_SUPORTADA = (
+    "🤔 Ainda não sei responder isso. Posso informar: total por período, total por categoria, "
+    "total por forma de pagamento, últimos gastos e parcelas futuras."
+)
+MSG_LEITURA_FAILED = "😕 Não consegui consultar a planilha agora. Tente novamente em instantes."
+MSG_NENHUM_GASTO = "nenhum gasto registrado"
+MSG_NENHUMA_PARCELA = "nenhuma parcela futura"
