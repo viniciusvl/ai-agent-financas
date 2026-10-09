@@ -3,12 +3,14 @@
 Spec: specs/tasks/T06-google-sheets.md
 """
 
+import threading
 from datetime import datetime
 from typing import Any
 
 import gspread
 
 from app.domain import SHEET_HEADER, Expense, to_sheet_row
+from app.sheet_schema import SchemaError
 
 
 class SheetsError(Exception):
@@ -110,18 +112,121 @@ class PagamentoSheetWriter:
     """
 
     def __init__(self, worksheet: Any, schema: Any) -> None:
-        raise NotImplementedError("T14")
+        # A idempotência por `id_gasto` depende de uma coluna com `campo: id`.
+        if not any(coluna.campo == "id" for coluna in schema.colunas):
+            raise SheetsError("schema sem coluna com campo 'id' (necessária para a idempotência)")
+        self.worksheet = worksheet
+        self.schema = schema
+        # Memoriza o sucesso de `ensure_header` para ler o cabeçalho apenas uma vez.
+        self._header_ready = False
+        # Ids já vistos nesta instância (carregados da planilha + gravados aqui).
+        self._ids_loaded = False
+        self._known_ids: set[str] = set()
+        # Serializa a seção crítica de `append_pagamento`: o bot pode chamar via
+        # `asyncio.to_thread` e dois callbacks (ex.: duplo clique) correm em paralelo.
+        self._lock = threading.Lock()
 
     @classmethod
     def from_service_account(
         cls, service_account_file: str, sheet_id: str, schema: Any
     ) -> "PagamentoSheetWriter":
-        raise NotImplementedError("T14")
+        """Conecta via service account e devolve o escritor da aba do schema.
+
+        Cria a aba se ela ainda não existir.
+        """
+        try:
+            client = gspread.service_account(filename=service_account_file)
+            spreadsheet = client.open_by_key(sheet_id)
+            try:
+                worksheet = spreadsheet.worksheet(schema.aba)
+            except gspread.exceptions.WorksheetNotFound:
+                worksheet = spreadsheet.add_worksheet(
+                    title=schema.aba, rows=1000, cols=len(schema.colunas)
+                )
+        except SheetsError:
+            raise
+        except Exception as exc:
+            raise SheetsError("falha ao conectar à planilha") from exc
+        return cls(worksheet, schema)
 
     def ensure_header(self) -> None:
-        raise NotImplementedError("T14")
+        """Garante que a primeira linha seja o cabeçalho do schema.
+
+        Aba vazia recebe o cabeçalho; cabeçalho divergente levanta `SheetsError`.
+        """
+        try:
+            current = self.worksheet.row_values(1)
+        except SheetsError:
+            raise
+        except Exception as exc:
+            raise SheetsError("falha ao ler o cabeçalho da planilha") from exc
+
+        if not current:
+            try:
+                self.worksheet.insert_row(self.schema.header(), index=1)
+            except SheetsError:
+                raise
+            except Exception as exc:
+                raise SheetsError("falha ao criar o cabeçalho da planilha") from exc
+            return
+
+        try:
+            self.schema.validate_header(current)
+        except SchemaError as exc:
+            raise SheetsError(str(exc)) from exc
+
+    def _load_existing_ids(self) -> set[str]:
+        """Lê os ids já presentes na planilha, ignorando o cabeçalho."""
+        # Descobre a posição 1-based da coluna id (garantida no __init__).
+        posicao = 0
+        for i, coluna in enumerate(self.schema.colunas):
+            if coluna.campo == "id":
+                posicao = i + 1
+                break
+        try:
+            valores = self.worksheet.col_values(posicao)
+        except SheetsError:
+            raise
+        except Exception as exc:
+            raise SheetsError("falha ao ler os ids existentes na planilha") from exc
+        return {str(valor) for valor in valores[1:] if valor not in (None, "")}
 
     def append_pagamento(
         self, pagamento: Any, usuario: str, registrado_em: datetime, id_gasto: str
     ) -> bool:
-        raise NotImplementedError("T14")
+        """Anexa o pagamento na planilha, garantindo o cabeçalho antes.
+
+        Idempotente por `id_gasto`: ids já conhecidos (da planilha ou gravados
+        nesta instância) não são reinseridos e a função retorna `False`.
+        """
+        # Toda a seção crítica fica sob o lock: carga inicial, verificação do id,
+        # `to_row`, `append_row` e registro do id. Sem isso, duas threads com o
+        # mesmo `id_gasto` passariam pela verificação e gravariam linhas duplicadas.
+        with self._lock:
+            if not self._ids_loaded:
+                if not self._header_ready:
+                    self.ensure_header()
+                    self._header_ready = True
+                self._known_ids = self._load_existing_ids()
+                self._ids_loaded = True
+
+            if id_gasto in self._known_ids:
+                return False
+
+            try:
+                linha = self.schema.to_row(
+                    pagamento,
+                    {"id": id_gasto, "usuario": usuario, "registrado_em": registrado_em},
+                )
+            except SchemaError as exc:
+                raise SheetsError(str(exc)) from exc
+
+            linha = _escape_formula_cells(linha)
+            try:
+                self.worksheet.append_row(linha, value_input_option="USER_ENTERED")
+            except SheetsError:
+                raise
+            except Exception as exc:
+                raise SheetsError("falha ao gravar o pagamento na planilha") from exc
+            self._known_ids.add(id_gasto)
+            return True
