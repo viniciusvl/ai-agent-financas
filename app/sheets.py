@@ -126,8 +126,24 @@ class PagamentoSheetWriter:
     def from_service_account(
         cls, service_account_file: str, sheet_id: str, schema: Any
     ) -> "PagamentoSheetWriter":
-        # Subtarefa 3 (sessão futura).
-        raise NotImplementedError("T14")
+        """Conecta via service account e devolve o escritor da aba do schema.
+
+        Cria a aba se ela ainda não existir.
+        """
+        try:
+            client = gspread.service_account(filename=service_account_file)
+            spreadsheet = client.open_by_key(sheet_id)
+            try:
+                worksheet = spreadsheet.worksheet(schema.aba)
+            except gspread.exceptions.WorksheetNotFound:
+                worksheet = spreadsheet.add_worksheet(
+                    title=schema.aba, rows=1000, cols=len(schema.colunas)
+                )
+        except SheetsError:
+            raise
+        except Exception as exc:
+            raise SheetsError("falha ao conectar à planilha") from exc
+        return cls(worksheet, schema)
 
     def ensure_header(self) -> None:
         """Garante que a primeira linha seja o cabeçalho do schema.
