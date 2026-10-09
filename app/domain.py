@@ -87,7 +87,9 @@ def _parse_amount(value: object) -> Decimal:
 
 def _normalize_description(value: object) -> str:
     """Remove espaços e valida o tamanho da descrição (1–200 caracteres)."""
-    text = str(value).strip()
+    if not isinstance(value, str):
+        raise ValueError("descrição deve ser um texto")
+    text = value.strip()
     if not text or len(text) > _DESCRIPTION_MAX_LENGTH:
         raise ValueError("descrição deve ter entre 1 e 200 caracteres")
     return text

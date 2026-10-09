@@ -44,5 +44,7 @@ def test_description_limit_boundary():
     assert make(description="x" * 200).description == "x" * 200
 
 
-def test_description_on_non_string():
-    assert make(description=123).description == "123"
+@pytest.mark.parametrize("raw", [None, 123, 12.5, ["x"], Decimal("1")])
+def test_description_on_non_string(raw):
+    with pytest.raises(ValidationError):
+        make(description=raw)
