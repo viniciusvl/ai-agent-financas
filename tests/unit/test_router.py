@@ -189,6 +189,20 @@ async def test_retry_after_is_capped_and_defaulted():
     assert fallback.calls == ["paguei 10"]
 
 
+@pytest.mark.parametrize(
+    ("raw", "esperado"),
+    [
+        ("nan", 1.0),
+        ("-3", 0.0),
+        ("inf", 1.0),
+        ("-inf", 1.0),
+    ],
+)
+def test_retry_after_non_finite_and_negative(raw, esperado):
+    response = FakeJevResponse(429, headers={"retry-after": raw})
+    assert IntentRouter._retry_after(response) == esperado
+
+
 async def test_malformed_response_uses_fallback():
     http = SequencedHttp([FakeJevResponse(200)])
     fallback = FakeFallback()
@@ -323,6 +337,14 @@ async def test_fallback_confidence_is_clamped():
     assert (await fb.classify("x")).confianca == 1.0
     fb, _ = make_fallback(content='{"intencao": "escrita", "confianca": -0.2}')
     assert (await fb.classify("x")).confianca == 0.0
+
+
+async def test_fallback_strips_code_fence():
+    fb, _ = make_fallback(content='```json\n{"intencao": "leitura", "confianca": 0.9}\n```')
+    rota = await fb.classify("quanto gastei?")
+    assert rota.intencao is Intencao.LEITURA
+    assert rota.confianca == pytest.approx(0.9)
+    assert rota.origem == "fallback"
 
 
 async def test_fallback_api_error_raises_router_error():
