@@ -1,0 +1,54 @@
+# Formato padrão da planilha de gastos (fonte única: prompts + escritor).
+# PROVISÓRIO (decisão D2 da issue #23) — edite colunas, ordem e formatos à vontade;
+# o bot valida o cabeçalho da aba contra este arquivo ao iniciar.
+#
+# campo: um de metodo_pagamento, data, hora, quant_parcelas, valor_compra, moeda, categoria,
+#        descricao, texto_original, valor_parcela, valor_primeira_parcela, id, usuario,
+#        registrado_em
+# tipo:  texto | data | hora | datahora | moeda | inteiro | enum
+aba: Gastos
+colunas:
+  - nome: ID
+    campo: id
+    tipo: texto
+  - nome: Data
+    campo: data
+    tipo: data
+    formato: "%d/%m/%Y"
+  - nome: Hora
+    campo: hora
+    tipo: hora
+    formato: "%H:%M"
+    obrigatoria: false
+  - nome: Descrição
+    campo: descricao
+    tipo: texto
+  - nome: Categoria
+    campo: categoria
+    tipo: enum
+  - nome: Método de pagamento
+    campo: metodo_pagamento
+    tipo: enum
+  - nome: Parcelas
+    campo: quant_parcelas
+    tipo: inteiro
+  - nome: Valor da compra
+    campo: valor_compra
+    tipo: moeda
+  - nome: Valor da parcela
+    campo: valor_parcela
+    tipo: moeda
+  - nome: Moeda
+    campo: moeda
+    tipo: enum
+  - nome: Usuário
+    campo: usuario
+    tipo: texto
+  - nome: Registrado em
+    campo: registrado_em
+    tipo: datahora
+    formato: "%d/%m/%Y %H:%M"
+  - nome: Texto original
+    campo: texto_original
+    tipo: texto
+    obrigatoria: false
