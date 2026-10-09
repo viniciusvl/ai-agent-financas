@@ -1,0 +1,21 @@
+# Arquivos e diretórios que não devem ir para a imagem.
+.env
+.env.*
+.git
+.gitignore
+.github
+secrets
+data
+tests
+.venv
+venv
+__pycache__
+*.py[cod]
+.agent
+.pytest_cache
+.ruff_cache
+.mypy_cache
+specs
+docs
+evals
+tools
