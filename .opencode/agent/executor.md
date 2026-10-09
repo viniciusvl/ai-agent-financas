@@ -19,6 +19,19 @@ permission:
     "git push*": allow
     "gh issue view*": allow
     "gh issue comment*": allow
+  shell:
+    "*": deny
+    "python -m pytest*": allow
+    "python -m ruff*": allow
+    "git status*": allow
+    "git diff*": allow
+    "git log*": allow
+    "git show*": allow
+    "git add*": allow
+    "git commit*": allow
+    "git push*": allow
+    "gh issue view*": allow
+    "gh issue comment*": allow
 ---
 Você é um **agente executor** num loop de desenvolvimento spec-driven. Um orquestrador
 (Claude) escreveu as specs e os testes de aceite e vai revisar o seu trabalho. Você trabalha
