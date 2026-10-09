@@ -23,3 +23,5 @@ jobs:
           python -m ruff format --check .
       - name: Testes (aceite das tasks com marcador em specs/done/)
         run: python -m pytest -q -rs
+      - name: Evals (formato e cobertura dos casos, sem rede)
+        run: python -m tools.run_evals --check
