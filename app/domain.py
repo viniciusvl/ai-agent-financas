@@ -3,6 +3,7 @@
 Spec: specs/tasks/T01-domain-model.md
 """
 
+import html
 import unicodedata
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
@@ -192,9 +193,26 @@ class Expense(BaseModel):
 
 def format_confirmation(expense: Expense) -> str:
     """Mensagem (HTML do Telegram) pedindo confirmação do gasto. Ver spec T01."""
-    raise NotImplementedError("T01")
+    return (
+        "📝 <b>Confirme o gasto:</b>\n"
+        f"• Valor: {expense.amount:.2f} {expense.currency.value}\n"
+        f"• Categoria: {expense.category.value}\n"
+        f"• Descrição: {html.escape(expense.description)}\n"
+        f"• Pagamento: {expense.payment_method.value}\n"
+        f"• Data: {expense.spent_at.strftime('%d/%m/%Y')}"
+    )
 
 
 def to_sheet_row(expense: Expense, user: str, recorded_at: datetime) -> list[str | float]:
     """Linha a ser inserida na planilha, na ordem de SHEET_HEADER. Ver spec T01."""
-    raise NotImplementedError("T01")
+    return [
+        expense.spent_at.isoformat(),
+        expense.description,
+        expense.category.value,
+        float(expense.amount),
+        expense.currency.value,
+        expense.payment_method.value,
+        user,
+        recorded_at.isoformat(),
+        expense.raw_text,
+    ]
