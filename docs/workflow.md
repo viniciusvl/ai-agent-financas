@@ -26,7 +26,7 @@ runner Txx ─► sessão 1 (opencode, contexto limpo) ─► commit + push + st
         │      ▲                                         │
         │      └──── validações falharam ◄── runner valida aceite/escopo/lint
         ▼
-aceite ✅ ─► runner marca specs/tasks_done.txt, abre PR → develop, label needs-review
+aceite ✅ ─► runner cria specs/done/Txx, abre PR → develop, label needs-review
         │
         ▼
 revisão do Claude ─► problemas? comenta "## 🔍 Revisão — mudanças solicitadas",

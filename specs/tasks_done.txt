@@ -1,3 +1,0 @@
-# Tasks concluídas e mergeadas em develop (uma por linha). Mantido pelo runner/orquestrador.
-# Os testes de aceite destas tasks rodam sempre no CI.
-T01
