@@ -25,6 +25,10 @@ service account do Google. A API é síncrona (o bot a chama via `asyncio.to_thr
 - `append_expense(expense, user, recorded_at)`: na primeira chamada da instância executa
   `ensure_header()` (memoriza o sucesso — só lê o cabeçalho uma vez); depois
   `append_row(to_sheet_row(...), value_input_option="USER_ENTERED")`.
+- **Escape de fórmulas:** com `USER_ENTERED` o Sheets interpreta as células. Antes do
+  `append_row`, toda célula `str` que comece com `=`, `+`, `-` ou `@` recebe o prefixo `'`
+  (ex.: `"-30 reembolso"` → `"'-30 reembolso"`, `"=1+1"` → `"'=1+1"`). Valores numéricos
+  (o valor do gasto) e as demais strings não são alterados.
 - Qualquer exceção do worksheet/gspread → `SheetsError` (encadeada); `SheetsError`
   já levantada não deve ser re-embrulhada.
 
