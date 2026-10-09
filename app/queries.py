@@ -13,6 +13,7 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 
 from app.messages import MSG_NENHUM_GASTO
+from app.payment import calcular_parcelas
 from app.sheet_schema import SheetSchema
 
 logger = logging.getLogger(__name__)
@@ -184,24 +185,72 @@ def parse_rows(schema: SheetSchema, rows: list[list[Any]]) -> list[Registro]:
     return regs
 
 
+def _no_periodo(registros: list[Registro], inicio: date, fim: date) -> list[Registro]:
+    """Registros com `inicio <= data <= fim` (período inclusivo)."""
+    return [reg for reg in registros if inicio <= reg.data <= fim]
+
+
+def _somar_por_moeda(registros: list[Registro]) -> Totais:
+    """Soma os valores por moeda."""
+    totais: Totais = {}
+    for reg in registros:
+        totais[reg.moeda] = totais.get(reg.moeda, Decimal("0")) + reg.valor_compra
+    return totais
+
+
+def _agrupar_por(registros: list[Registro], campo: str) -> dict[str, Totais]:
+    """Agrupa os registros pelo valor de `campo`, somando por moeda em cada grupo."""
+    grupos: dict[str, Totais] = {}
+    for reg in registros:
+        chave = getattr(reg, campo)
+        totais = grupos.setdefault(chave, {})
+        totais[reg.moeda] = totais.get(reg.moeda, Decimal("0")) + reg.valor_compra
+    return grupos
+
+
 def total_periodo(registros: list[Registro], inicio: date, fim: date) -> Totais:
-    raise NotImplementedError("T15")
+    """Total gasto no período (inclusivo), por moeda."""
+    return _somar_por_moeda(_no_periodo(registros, inicio, fim))
 
 
 def total_por_categoria(registros: list[Registro], inicio: date, fim: date) -> dict[str, Totais]:
-    raise NotImplementedError("T15")
+    """Total por categoria e moeda no período (inclusivo)."""
+    return _agrupar_por(_no_periodo(registros, inicio, fim), "categoria")
 
 
 def total_por_metodo(registros: list[Registro], inicio: date, fim: date) -> dict[str, Totais]:
-    raise NotImplementedError("T15")
+    """Total por forma de pagamento e moeda no período (inclusivo)."""
+    return _agrupar_por(_no_periodo(registros, inicio, fim), "metodo_pagamento")
 
 
 def ultimos(registros: list[Registro], n: int) -> list[Registro]:
-    raise NotImplementedError("T15")
+    """Os `n` registros mais recentes; empate de data mantém a ordem inversa da planilha."""
+    ordenados = sorted(enumerate(registros), key=lambda par: (par[1].data, par[0]), reverse=True)
+    return [reg for _, reg in ordenados[: max(n, 0)]]
 
 
 def parcelas_futuras(registros: list[Registro], referencia: date) -> dict[str, Totais]:
-    raise NotImplementedError("T15")
+    """Parcelas de compras parceladas com vencimento no mês de `referencia` ou depois.
+
+    A parcela *k* (1..n) de uma compra vence no mês da compra + *k*. Retorna
+    `{"AAAA-MM": {moeda: total}}` em ordem cronológica.
+    """
+    ref_index = referencia.year * 12 + (referencia.month - 1)
+    totais: dict[str, Totais] = {}
+    for reg in registros:
+        if reg.metodo_pagamento != "credito_parcelado" or reg.quant_parcelas < 2:
+            continue
+        parcelas = calcular_parcelas(reg.valor_compra, reg.quant_parcelas)
+        compra_index = reg.data.year * 12 + (reg.data.month - 1)
+        for k, valor in enumerate(parcelas, start=1):
+            idx = compra_index + k
+            if idx < ref_index:
+                continue
+            ano, mes = divmod(idx, 12)
+            chave = f"{ano:04d}-{mes + 1:02d}"
+            por_moeda = totais.setdefault(chave, {})
+            por_moeda[reg.moeda] = por_moeda.get(reg.moeda, Decimal("0")) + valor
+    return dict(sorted(totais.items()))
 
 
 class GastosRepository:
@@ -214,10 +263,33 @@ class GastosRepository:
         ttl_seconds: float = 60,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        raise NotImplementedError("T15")
+        self._worksheet = worksheet
+        self._schema = schema
+        self._ttl_seconds = ttl_seconds
+        self._clock = clock
+        self._cache: list[Registro] | None = None
+        self._cache_at = 0.0
+
+    def _carregar(self) -> list[Registro]:
+        """Lê a planilha e converte as linhas (descarta o cabeçalho)."""
+        try:
+            rows = self._worksheet.get_all_values(
+                value_render_option="UNFORMATTED_VALUE",
+                date_time_render_option="FORMATTED_STRING",
+            )
+        except Exception as exc:  # qualquer falha do worksheet vira ReadError
+            raise ReadError(f"falha ao ler a planilha: {exc}") from exc
+        return parse_rows(self._schema, [list(row) for row in rows[1:]])
 
     def registros(self) -> list[Registro]:
-        raise NotImplementedError("T15")
+        """Registros da planilha, em cache por `ttl_seconds` (relógio injetável)."""
+        agora = self._clock()
+        if self._cache is not None and (agora - self._cache_at) < self._ttl_seconds:
+            return self._cache
+        self._cache = self._carregar()
+        self._cache_at = agora
+        return self._cache
 
     def invalidate(self) -> None:
-        raise NotImplementedError("T15")
+        """Descarta o cache, forçando nova leitura na próxima chamada."""
+        self._cache = None
