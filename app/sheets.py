@@ -6,6 +6,8 @@ Spec: specs/tasks/T06-google-sheets.md
 from datetime import datetime
 from typing import Any
 
+import gspread
+
 from app.domain import SHEET_HEADER, Expense, to_sheet_row
 
 
@@ -24,7 +26,24 @@ class SheetsRepository:
     def from_service_account(
         cls, service_account_file: str, sheet_id: str, worksheet_name: str
     ) -> "SheetsRepository":
-        raise NotImplementedError("T06")
+        """Conecta via service account e devolve o repositório da aba indicada.
+
+        Cria a aba se ela ainda não existir.
+        """
+        try:
+            client = gspread.service_account(filename=service_account_file)
+            spreadsheet = client.open_by_key(sheet_id)
+            try:
+                worksheet = spreadsheet.worksheet(worksheet_name)
+            except gspread.exceptions.WorksheetNotFound:
+                worksheet = spreadsheet.add_worksheet(
+                    title=worksheet_name, rows=1000, cols=len(SHEET_HEADER)
+                )
+        except SheetsError:
+            raise
+        except Exception as exc:
+            raise SheetsError("falha ao conectar à planilha") from exc
+        return cls(worksheet)
 
     def ensure_header(self) -> None:
         """Garante que a primeira linha seja o cabeçalho esperado.
