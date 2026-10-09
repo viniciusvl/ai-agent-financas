@@ -2,7 +2,7 @@
 id: T08
 title: App FastAPI do webhook e montagem das dependências
 branch: feature/T08-webhook-app
-depends_on: T07
+depends_on: T16
 acceptance: tests/acceptance/test_t08_webhook.py
 allowed_paths:
   - app/main.py
@@ -27,9 +27,20 @@ Execução: `uvicorn --factory app.main:create_app`.
     - `update_id` já visto (guardar os últimos 1000 em memória) → 200 sem processar;
     - senão agenda `service.handle_update(update)` em `BackgroundTasks` e responde
       `{"ok": true}` imediatamente.
-- `build_service(settings) -> BotService`: cria `TelegramClient`, `WhisperTranscriber`,
-  `ExpenseExtractor`, `PendingStore` (+ `init()`), `SheetsRepository.from_service_account`
-  e `BotService(allowed_user_ids=set(settings.allowed_user_ids), timezone=...)`.
+- `build_service(settings) -> BotService` (arquitetura v2, #23) monta, a partir de `settings`:
+  - `schema = SheetSchema.load(settings.sheet_schema_path)`;
+  - `TelegramClient`, `WhisperTranscriber` (key/model/language/base_url do Whisper);
+  - `IntentRouter(api_key=typesafe_api_key, model=jev_model, base_url=jev_base_url,
+    threshold=router_confidence_threshold, fallback=DeepSeekIntentFallback(...))`;
+  - `PaymentExtractor(api_key=deepseek_api_key, schema=schema, model, base_url,
+    default_currency, timezone)`;
+  - `writer = PagamentoSheetWriter.from_service_account(google_service_account_file,
+    google_sheet_id, schema)`;
+  - `ReadAgent(api_key=deepseek_api_key, repo=GastosRepository(writer.worksheet, schema), ...)`;
+  - `PendingStore(db_path, pending_ttl_seconds, model=Pagamento)` + `init()`;
+  - `BotService(telegram, transcriber, router, extractor, read_agent, store, writer,
+    allowed_user_ids=set(settings.allowed_user_ids), timezone=settings.timezone)`.
+  - No shutdown (lifespan), fechar `TelegramClient` e `IntentRouter` (`aclose`).
 
 ## Subtarefas (uma por sessão)
 

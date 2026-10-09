@@ -84,14 +84,21 @@ def test_create_app_requires_secret():
 
 
 def test_build_service_wires_real_dependencies(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
     import app.sheets as sheets_module
     from app.bot import BotService
 
-    sentinel = object()
+    calls = {}
+
+    def fake_from_service_account(cls, file, sheet_id, schema):
+        calls.update(file=file, sheet_id=sheet_id, aba=schema.aba)
+        return SimpleNamespace(worksheet=object(), append_pagamento=lambda *a: True)
+
     monkeypatch.setattr(
-        sheets_module.SheetsRepository,
+        sheets_module.PagamentoSheetWriter,
         "from_service_account",
-        classmethod(lambda cls, *a, **k: sentinel),
+        classmethod(fake_from_service_account),
     )
     service = build_service(
         settings(
@@ -104,3 +111,8 @@ def test_build_service_wires_real_dependencies(monkeypatch, tmp_path):
     )
     assert isinstance(service, BotService)
     assert (tmp_path / "bot.db").exists()
+    assert calls == {
+        "file": "secrets/google-service-account.json",
+        "sheet_id": "sheet",
+        "aba": "Gastos",
+    }

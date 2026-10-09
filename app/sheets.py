@@ -101,3 +101,27 @@ class SheetsRepository:
             raise
         except Exception as exc:
             raise SheetsError("falha ao gravar o gasto na planilha") from exc
+
+
+class PagamentoSheetWriter:
+    """Grava `Pagamento` (v2) no formato do schema da planilha, sem duplicar ids.
+
+    Spec: specs/tasks/T14-schema-writer.md
+    """
+
+    def __init__(self, worksheet: Any, schema: Any) -> None:
+        raise NotImplementedError("T14")
+
+    @classmethod
+    def from_service_account(
+        cls, service_account_file: str, sheet_id: str, schema: Any
+    ) -> "PagamentoSheetWriter":
+        raise NotImplementedError("T14")
+
+    def ensure_header(self) -> None:
+        raise NotImplementedError("T14")
+
+    def append_pagamento(
+        self, pagamento: Any, usuario: str, registrado_em: datetime, id_gasto: str
+    ) -> bool:
+        raise NotImplementedError("T14")

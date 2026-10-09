@@ -62,7 +62,8 @@ Este repositório é desenvolvido em **agent loops spec-driven**:
 ## Proibido
 
 - Alterar `tests/acceptance/`, `specs/`, `tools/`, `.opencode/`, `.github/`, `AGENTS.md`,
-  `CLAUDE.md`, `app/messages.py`, `app/prompts.py`, `pyproject.toml`, `requirements*.txt`.
+  `CLAUDE.md`, `app/messages.py`, `app/prompts.py`, `config/`, `pyproject.toml`,
+  `requirements*.txt` — **exceto** caminhos listados explicitamente em `allowed_paths` da spec.
   (O runner reverte automaticamente qualquer alteração fora do escopo.)
 - Pular/enfraquecer testes, usar `skip`/`xfail`, ou "hardcodar" respostas dos testes.
 - Mudar de branch, fazer merge, rebase, `push --force` ou abrir PR (o runner faz).
