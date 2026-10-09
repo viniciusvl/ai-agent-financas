@@ -8,9 +8,9 @@ from datetime import date, time
 from decimal import ROUND_DOWN, Decimal
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
-from app.domain import Category, Currency
+from app.domain import Category, Currency, _strip_accents
 
 
 class MetodoPagamento(StrEnum):
@@ -27,6 +27,42 @@ class MetodoPagamento(StrEnum):
 MAX_PARCELAS = 24
 
 _CENTAVOS = Decimal("0.01")
+
+# Aliases de método de pagamento. As chaves passam por `_chave_metodo` (minúsculas, sem acento
+# e com espaços/hífens/underscores removidos), então variantes como "wechat pay", "wechat_pay"
+# e "WeChat" caem na mesma chave.
+_METODO_POR_CHAVE: dict[str, MetodoPagamento] = {
+    "dinheiro": MetodoPagamento.DINHEIRO,
+    "cash": MetodoPagamento.DINHEIRO,
+    "especie": MetodoPagamento.DINHEIRO,
+    "debito": MetodoPagamento.DEBITO,
+    "cartaodedebito": MetodoPagamento.DEBITO,
+    "credito": MetodoPagamento.CREDITO_A_VISTA,
+    "cartao": MetodoPagamento.CREDITO_A_VISTA,
+    "cartaodecredito": MetodoPagamento.CREDITO_A_VISTA,
+    "creditoavista": MetodoPagamento.CREDITO_A_VISTA,
+    "parcelado": MetodoPagamento.CREDITO_PARCELADO,
+    "creditoparcelado": MetodoPagamento.CREDITO_PARCELADO,
+    "pix": MetodoPagamento.PIX,
+    "alipay": MetodoPagamento.ALIPAY,
+    "zhifubao": MetodoPagamento.ALIPAY,
+    "wechat": MetodoPagamento.WECHAT_PAY,
+    "wechatpay": MetodoPagamento.WECHAT_PAY,
+    "weixin": MetodoPagamento.WECHAT_PAY,
+}
+
+
+def _chave_metodo(value: object) -> str:
+    """Chave de comparação: minúsculas, sem acentos e sem espaços/hífens/underscores."""
+    texto = _strip_accents(str(value).strip().lower())
+    return "".join(ch for ch in texto if ch not in " -_")
+
+
+def normalizar_metodo(value: object) -> MetodoPagamento:
+    """Normaliza o método de pagamento; desconhecido ou `None` vira `outro`."""
+    if value is None:
+        return MetodoPagamento.OUTRO
+    return _METODO_POR_CHAVE.get(_chave_metodo(value), MetodoPagamento.OUTRO)
 
 
 def calcular_parcelas(valor_compra: Decimal, quant_parcelas: int) -> list[Decimal]:
@@ -66,6 +102,11 @@ class Pagamento(BaseModel):
     texto_original: str = ""
 
     # TODO(T10): validators e regras de parcelas.
+
+    @field_validator("metodo_pagamento", mode="before")
+    @classmethod
+    def _validar_metodo_pagamento(cls, value: object) -> MetodoPagamento:
+        return normalizar_metodo(value)
 
     @property
     def parcelas(self) -> list[Decimal]:
