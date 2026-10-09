@@ -118,16 +118,55 @@ class IntentRouter:
             modelo=data.get("model"),
         )
 
-    async def route(self, texto: str) -> Rota:
-        if not texto or not texto.strip():
-            return Rota(Intencao.OUTRO, 0.0, origem="vazio")
-
-        response = await self.http.post(
+    async def _post_jev(self, texto: str) -> httpx.Response:
+        """Faz a requisição ao Jev (passo 3 da spec)."""
+        return await self.http.post(
             f"{self.base_url}/v1/systemone",
             headers={"Authorization": f"Bearer {self.api_key}"},
             json=self._jev_body(texto),
         )
-        rota = self._interpret_jev(response.json())
+
+    @staticmethod
+    def _retry_after(response: httpx.Response) -> float:
+        """Segundos a esperar após 429/529: `retry-after`, limitado a 5 (default 1)."""
+        raw = response.headers.get("retry-after")
+        try:
+            seconds = float(raw)
+        except (TypeError, ValueError):
+            return 1.0
+        return min(seconds, 5.0)
+
+    async def _try_jev(self, texto: str) -> Rota | None:
+        """Chama o Jev; devolve `None` em qualquer falha para acionar o fallback."""
+        try:
+            response = await self._post_jev(texto)
+            if response.status_code in (429, 529):
+                # Uma única nova tentativa após esperar o `retry-after`.
+                await self.sleep(self._retry_after(response))
+                response = await self._post_jev(texto)
+        except httpx.HTTPError:
+            return None
+
+        if response.status_code != 200:
+            return None
+        try:
+            return self._interpret_jev(response.json())
+        except (ValueError, KeyError, TypeError):
+            return None
+
+    async def _fallback(self, texto: str) -> Rota:
+        """Classifica pelo fallback; sem fallback ou com erro → `RouterError`."""
+        if self.fallback is None:
+            raise RouterError("Jev falhou e não há fallback configurado")
+        try:
+            return await self.fallback.classify(texto)
+        except Exception as exc:  # noqa: BLE001 - qualquer erro vira RouterError
+            raise RouterError("Jev falhou e o fallback também falhou") from exc
+
+    def _finalize(self, rota: Rota) -> Rota:
+        """Aplica o limiar (passo 7) e registra a decisão (passo 8)."""
+        if rota.confianca < self.threshold:
+            rota.intencao = Intencao.OUTRO
         logger.info(
             "Roteado: intencao=%s confianca=%.3f origem=%s modelo=%s",
             rota.intencao,
@@ -136,6 +175,17 @@ class IntentRouter:
             rota.modelo,
         )
         return rota
+
+    async def route(self, texto: str) -> Rota:
+        if not texto or not texto.strip():
+            return Rota(Intencao.OUTRO, 0.0, origem="vazio")
+
+        if self.api_key:
+            rota = await self._try_jev(texto)
+            if rota is not None:
+                return self._finalize(rota)
+
+        return self._finalize(await self._fallback(texto))
 
     async def aclose(self) -> None:
         if self._owns_http:
