@@ -11,6 +11,8 @@ from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 
+from pydantic import BaseModel
+
 from app.domain import Expense
 
 _CREATE_TABLE = """
@@ -29,7 +31,7 @@ class PendingExpense:
     id: str
     chat_id: int
     user_id: int
-    expense: Expense
+    expense: BaseModel
     created_at: float
 
 
@@ -39,10 +41,12 @@ class PendingStore:
         db_path: str,
         ttl_seconds: int = 86400,
         clock: Callable[[], float] = time.time,
+        model: type[BaseModel] = Expense,
     ) -> None:
         self.db_path = db_path
         self.ttl_seconds = ttl_seconds
         self.clock = clock
+        self.model = model
 
     def init(self) -> None:
         parent = Path(self.db_path).parent
@@ -50,7 +54,7 @@ class PendingStore:
         with closing(sqlite3.connect(self.db_path)) as conn, conn:
             conn.execute(_CREATE_TABLE)
 
-    def save(self, chat_id: int, user_id: int, expense: Expense) -> str:
+    def save(self, chat_id: int, user_id: int, expense: BaseModel) -> str:
         pending_id = uuid.uuid4().hex[:12]
         created_at = self.clock()
         expense_json = expense.model_dump_json()
@@ -77,7 +81,7 @@ class PendingStore:
             id=row[0],
             chat_id=row[1],
             user_id=row[2],
-            expense=Expense.model_validate_json(row[3]),
+            expense=self.model.model_validate_json(row[3]),
             created_at=created_at,
         )
 
