@@ -27,7 +27,69 @@ class UpdateHandler(Protocol):
 
 def build_service(settings: Settings) -> UpdateHandler:
     """Monta o BotService real com todas as dependências. Ver spec T08."""
-    raise NotImplementedError("T08")
+    from app.bot import BotService
+    from app.payment import Pagamento
+    from app.payment_extractor import PaymentExtractor
+    from app.pending_store import PendingStore
+    from app.queries import GastosRepository
+    from app.read_agent import ReadAgent
+    from app.router import DeepSeekIntentFallback, IntentRouter
+    from app.sheet_schema import SheetSchema
+    from app.sheets import PagamentoSheetWriter
+    from app.stt import WhisperTranscriber
+    from app.telegram_api import TelegramClient
+
+    schema = SheetSchema.load(settings.sheet_schema_path)
+    telegram = TelegramClient(settings.telegram_bot_token)
+    transcriber = WhisperTranscriber(
+        api_key=settings.whisper_api_key,
+        model=settings.whisper_model,
+        language=settings.whisper_language,
+        base_url=settings.whisper_base_url,
+    )
+    fallback = DeepSeekIntentFallback(
+        api_key=settings.deepseek_api_key,
+        model=settings.deepseek_model,
+        base_url=settings.deepseek_base_url,
+    )
+    router = IntentRouter(
+        api_key=settings.typesafe_api_key,
+        model=settings.jev_model,
+        base_url=settings.jev_base_url,
+        threshold=settings.router_confidence_threshold,
+        fallback=fallback,
+    )
+    extractor = PaymentExtractor(
+        api_key=settings.deepseek_api_key,
+        schema=schema,
+        model=settings.deepseek_model,
+        base_url=settings.deepseek_base_url,
+        default_currency=settings.default_currency,
+        timezone=settings.timezone,
+    )
+    writer = PagamentoSheetWriter.from_service_account(
+        settings.google_service_account_file, settings.google_sheet_id, schema
+    )
+    read_agent = ReadAgent(
+        api_key=settings.deepseek_api_key,
+        repo=GastosRepository(writer.worksheet, schema),
+        model=settings.deepseek_model,
+        base_url=settings.deepseek_base_url,
+        timezone=settings.timezone,
+    )
+    store = PendingStore(settings.db_path, settings.pending_ttl_seconds, model=Pagamento)
+    store.init()
+    return BotService(
+        telegram,
+        transcriber,
+        router,
+        extractor,
+        read_agent,
+        store,
+        writer,
+        allowed_user_ids=set(settings.allowed_user_ids),
+        timezone=settings.timezone,
+    )
 
 
 def create_app(settings: Settings | None = None, service: UpdateHandler | None = None) -> FastAPI:
@@ -84,7 +146,11 @@ def create_app(settings: Settings | None = None, service: UpdateHandler | None =
 
 
 async def _close_handler(handler: Any) -> None:
-    """Fecha dependências que expõem ``aclose`` (ex.: TelegramClient)."""
+    """Fecha as dependências com ``aclose`` (TelegramClient e IntentRouter)."""
+    for dependencia in (getattr(handler, "telegram", None), getattr(handler, "router", None)):
+        aclose = getattr(dependencia, "aclose", None)
+        if aclose is not None:
+            await aclose()
     aclose = getattr(handler, "aclose", None)
     if aclose is not None:
         await aclose()
