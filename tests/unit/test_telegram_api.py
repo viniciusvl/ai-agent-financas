@@ -176,3 +176,60 @@ async def test_set_webhook_payload_and_true():
         "allowed_updates": ["message", "callback_query"],
         "drop_pending_updates": False,
     }
+
+
+class FakeDownloadResponse:
+    def __init__(self, status_code, content=b""):
+        self.status_code = status_code
+        self.content = content
+        self.is_success = 200 <= status_code < 300
+
+
+class FakeDownloadHTTP(FakeHTTP):
+    """FakeHTTP com suporte a GET para exercitar ``download_file``."""
+
+    def __init__(self, response, get_response):
+        super().__init__(response)
+        self._get_response = get_response
+        self.get_calls = []
+
+    async def get(self, url):
+        self.get_calls.append(url)
+        if isinstance(self._get_response, Exception):
+            raise self._get_response
+        return self._get_response
+
+
+async def test_download_file_returns_content_and_calls_getfile():
+    http = FakeDownloadHTTP(
+        {"ok": True, "result": {"file_id": "F1", "file_path": "voice/file_1.oga"}},
+        FakeDownloadResponse(200, b"OGGDATA"),
+    )
+    client = TelegramClient("123:ABC", http=http)
+
+    assert await client.download_file("F1") == b"OGGDATA"
+    assert http.calls[0][0] == "https://api.telegram.org/bot123:ABC/getFile"
+    assert http.calls[0][1] == {"file_id": "F1"}
+    assert http.get_calls == ["https://api.telegram.org/file/bot123:ABC/voice/file_1.oga"]
+
+
+async def test_download_file_non_2xx_raises_telegram_error():
+    http = FakeDownloadHTTP(
+        {"ok": True, "result": {"file_path": "voice/x.oga"}},
+        FakeDownloadResponse(404),
+    )
+    client = TelegramClient("123:ABC", http=http)
+
+    with pytest.raises(TelegramError):
+        await client.download_file("F1")
+
+
+async def test_download_file_network_error_raises_telegram_error():
+    http = FakeDownloadHTTP(
+        {"ok": True, "result": {"file_path": "voice/x.oga"}},
+        httpx.ConnectError("boom"),
+    )
+    client = TelegramClient("123:ABC", http=http)
+
+    with pytest.raises(TelegramError):
+        await client.download_file("F1")
