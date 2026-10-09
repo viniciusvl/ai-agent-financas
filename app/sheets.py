@@ -15,6 +15,24 @@ class SheetsError(Exception):
     """Falha ao ler/escrever na planilha."""
 
 
+_FORMULA_PREFIXES = ("=", "+", "-", "@")
+
+
+def _escape_formula_cells(row: list[Any]) -> list[Any]:
+    """Prefixa com `'` células de texto que o Sheets interpretaria como fórmula.
+
+    Com `USER_ENTERED`, textos iniciados por `=`, `+`, `-` ou `@` viram fórmulas;
+    o prefixo força a leitura como texto. Números e demais strings ficam intactos.
+    """
+    escaped: list[Any] = []
+    for cell in row:
+        if isinstance(cell, str) and cell.startswith(_FORMULA_PREFIXES):
+            escaped.append("'" + cell)
+        else:
+            escaped.append(cell)
+    return escaped
+
+
 class SheetsRepository:
     def __init__(self, worksheet: Any) -> None:
         # `worksheet` é um gspread.Worksheet (ou fake com a mesma interface nos testes).
@@ -76,6 +94,7 @@ class SheetsRepository:
             self._header_ready = True
 
         row = to_sheet_row(expense, user, recorded_at)
+        row = _escape_formula_cells(row)
         try:
             self.worksheet.append_row(row, value_input_option="USER_ENTERED")
         except SheetsError:
