@@ -2,7 +2,7 @@
 os critérios de aceite da task sejam atingidos.
 
 Uso:
-    python -m tools.agent_loop.runner T01 [--max-sessions 8] [--worktree] [--force]
+    python -m tools.agent_loop.runner T01 [--max-sessions 8] [--clone] [--force]
 
 Cada volta do loop:
   1. abre uma sessão NOVA do opencode (sem memória) com a spec, o status e o feedback;
@@ -161,31 +161,40 @@ def tail(text: str, limit: int = TAIL_CHARS) -> str:
 # --------------------------------------------------------------------------- workspace
 
 
-def prepare_workspace(task: TaskSpec, use_worktree: bool) -> Path:
-    git(ROOT, "fetch", "origin", "--prune")
-    remote_exists = bool(git(ROOT, "ls-remote", "--heads", "origin", task.branch))
-    local_exists = bool(git(ROOT, "branch", "--list", task.branch))
+def clone_dir(task: TaskSpec) -> Path:
+    return ROOT.parent / f"{ROOT.name}-agents" / task.id
 
-    if use_worktree:
-        cwd = ROOT.parent / f"{ROOT.name}-wt" / task.id
-        if not cwd.exists():
-            cwd.parent.mkdir(parents=True, exist_ok=True)
-            if local_exists:
-                git(ROOT, "worktree", "add", str(cwd), task.branch)
-            elif remote_exists:
-                git(ROOT, "worktree", "add", "-b", task.branch, str(cwd), f"origin/{task.branch}")
-            else:
-                git(ROOT, "worktree", "add", "-b", task.branch, str(cwd), f"origin/{BASE_BRANCH}")
+
+def prepare_clone(task: TaskSpec) -> Path:
+    """Clone independente por task.
+
+    Git worktrees NÃO isolam o opencode: ele resolve a raiz do projeto pelo diretório .git
+    comum e passa a editar/commitar no checkout principal. Um clone tem o próprio .git.
+    """
+    cwd = clone_dir(task)
+    if not (cwd / ".git").exists():
+        cwd.parent.mkdir(parents=True, exist_ok=True)
+        run(["git", "clone", "-q", str(ROOT), str(cwd)], ROOT.parent)
+        git(cwd, "remote", "set-url", "origin", git(ROOT, "remote", "get-url", "origin"))
+    git(cwd, "fetch", "origin", "--prune")
+    return cwd
+
+
+def prepare_workspace(task: TaskSpec, use_clone: bool) -> Path:
+    cwd = prepare_clone(task) if use_clone else ROOT
+    git(cwd, "fetch", "origin", "--prune")
+    remote_exists = bool(git(cwd, "ls-remote", "--heads", "origin", task.branch))
+    local_exists = bool(git(cwd, "branch", "--list", task.branch))
+
+    if git(cwd, "status", "--porcelain"):
+        raise SystemExit(f"{cwd} com alterações não commitadas; resolva antes de rodar o loop")
+    if local_exists:
+        git(cwd, "checkout", task.branch)
+    elif remote_exists:
+        git(cwd, "checkout", "-b", task.branch, f"origin/{task.branch}")
     else:
-        cwd = ROOT
-        if git(cwd, "status", "--porcelain"):
-            raise SystemExit("working tree com alterações; faça commit/stash ou use --worktree")
-        if local_exists:
-            git(cwd, "checkout", task.branch)
-        elif remote_exists:
-            git(cwd, "checkout", "-b", task.branch, f"origin/{task.branch}")
-        else:
-            git(cwd, "checkout", "-b", task.branch, f"origin/{BASE_BRANCH}")
+        git(cwd, "checkout", "-b", task.branch, f"origin/{BASE_BRANCH}")
+    install_pre_push_hook(cwd)
 
     if remote_exists:
         git(cwd, "pull", "--ff-only", "origin", task.branch, check=False)
@@ -464,8 +473,8 @@ exit 0
 """
 
 
-def install_pre_push_hook() -> None:
-    hooks = Path(git(ROOT, "rev-parse", "--path-format=absolute", "--git-common-dir")) / "hooks"
+def install_pre_push_hook(repo: Path = ROOT) -> None:
+    hooks = Path(git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir")) / "hooks"
     hooks.mkdir(exist_ok=True)
     (hooks / "pre-push").write_text(PRE_PUSH_HOOK, encoding="utf-8", newline="\n")
 
@@ -489,14 +498,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Agent loop de uma task spec-driven")
     parser.add_argument("task", help="ID da task, ex.: T01")
     parser.add_argument("--max-sessions", type=int, default=8)
-    parser.add_argument("--worktree", action="store_true", help="usar git worktree isolado")
+    parser.add_argument(
+        "--clone", action="store_true", help="rodar num clone isolado (para loops paralelos)"
+    )
     parser.add_argument("--force", action="store_true", help="ignorar dependências pendentes")
     args = parser.parse_args(argv)
 
     task = load_spec(args.task)
     number = issue_number(task.id)
     install_pre_push_hook()
-    cwd = prepare_workspace(task, args.worktree)
+    cwd = prepare_workspace(task, args.clone)
     log(f"{task.id} em {cwd} (branch {task.branch}, issue #{number})")
 
     missing = [d for d in task.depends_on if d not in done_tasks_on_base(cwd)]

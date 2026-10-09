@@ -63,9 +63,9 @@ commitando e comentando na issue — esse é o "contexto" passado à próxima se
 # rodar o loop de uma task (na raiz, árvore limpa)
 python -m tools.agent_loop.runner T01
 
-# tasks independentes em paralelo (cada uma no seu worktree)
-python -m tools.agent_loop.runner T02 --worktree
-python -m tools.agent_loop.runner T03 --worktree
+# tasks independentes em paralelo (cada uma no seu clone isolado)
+python -m tools.agent_loop.runner T02 --clone
+python -m tools.agent_loop.runner T03 --clone
 
 # revisão
 gh pr diff <n>; gh pr checks <n>
