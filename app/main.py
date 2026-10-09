@@ -123,7 +123,12 @@ def create_app(settings: Settings | None = None, service: UpdateHandler | None =
         request: Request, background_tasks: BackgroundTasks
     ) -> dict[str, bool]:
         provided = request.headers.get(SECRET_HEADER, "")
-        if not secrets.compare_digest(provided, settings.telegram_webhook_secret):
+        # Comparar bytes: ``compare_digest`` com ``str`` exige ASCII e levantaria
+        # ``TypeError`` (500) para um header com caractere não-ASCII controlado
+        # pelo chamador. Ver revisão da T08.
+        if not secrets.compare_digest(
+            provided.encode("utf-8"), settings.telegram_webhook_secret.encode("utf-8")
+        ):
             raise HTTPException(status_code=403, detail="forbidden")
         try:
             update = await request.json()
