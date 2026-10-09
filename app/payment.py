@@ -8,9 +8,17 @@ from datetime import date, time
 from decimal import ROUND_DOWN, Decimal
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from app.domain import Category, Currency, _strip_accents
+from app.domain import (
+    Category,
+    Currency,
+    _normalize_category,
+    _normalize_currency,
+    _normalize_description,
+    _parse_amount,
+    _strip_accents,
+)
 
 
 class MetodoPagamento(StrEnum):
@@ -101,21 +109,67 @@ class Pagamento(BaseModel):
     descricao: str
     texto_original: str = ""
 
-    # TODO(T10): validators e regras de parcelas.
-
     @field_validator("metodo_pagamento", mode="before")
     @classmethod
     def _validar_metodo_pagamento(cls, value: object) -> MetodoPagamento:
         return normalizar_metodo(value)
 
+    @field_validator("valor_compra", mode="before")
+    @classmethod
+    def _validar_valor_compra(cls, value: object) -> Decimal:
+        return _parse_amount(value)
+
+    @field_validator("descricao", mode="before")
+    @classmethod
+    def _validar_descricao(cls, value: object) -> str:
+        return _normalize_description(value)
+
+    @field_validator("moeda", mode="before")
+    @classmethod
+    def _validar_moeda(cls, value: object) -> Currency:
+        return _normalize_currency(value)
+
+    @field_validator("categoria", mode="before")
+    @classmethod
+    def _validar_categoria(cls, value: object) -> Category:
+        return _normalize_category(value)
+
+    @field_validator("quant_parcelas", mode="before")
+    @classmethod
+    def _validar_quant_parcelas(cls, value: object) -> int:
+        if value is None:
+            return 1
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError(f"quantidade de parcelas inválida: {value!r}")
+        return value
+
+    @model_validator(mode="after")
+    def _aplicar_regras_de_parcelas(self) -> "Pagamento":
+        """Aplica as regras de parcelas da spec T10 (após a validação dos campos)."""
+        if self.metodo_pagamento is MetodoPagamento.CREDITO_A_VISTA:
+            if self.quant_parcelas >= 2:
+                self.metodo_pagamento = MetodoPagamento.CREDITO_PARCELADO
+            else:
+                self.quant_parcelas = 1
+
+        if self.metodo_pagamento is MetodoPagamento.CREDITO_PARCELADO:
+            if not 2 <= self.quant_parcelas <= MAX_PARCELAS:
+                raise ValueError(f"credito_parcelado exige entre 2 e {MAX_PARCELAS} parcelas")
+        else:
+            self.quant_parcelas = 1
+        return self
+
     @property
     def parcelas(self) -> list[Decimal]:
-        raise NotImplementedError("T10")
+        """Parcelas calculadas pela aplicação (o LLM nunca as define)."""
+        return calcular_parcelas(self.valor_compra, self.quant_parcelas)
 
     @property
     def valor_parcela(self) -> Decimal:
-        raise NotImplementedError("T10")
+        """Valor da última parcela (a base, sem a diferença de arredondamento)."""
+        return self.parcelas[-1]
 
     @property
     def valor_primeira_parcela(self) -> Decimal:
-        raise NotImplementedError("T10")
+        """Valor da primeira parcela (absorve a diferença de arredondamento)."""
+        return self.parcelas[0]
