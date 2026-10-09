@@ -1,8 +1,10 @@
 """Testes unitários do roteador de intenção (subpassos 1, 3 e 5 da T12)."""
 
+from types import SimpleNamespace
+
 import pytest
 
-from app.router import Intencao, IntentRouter, Rota, RouterError
+from app.router import DeepSeekIntentFallback, Intencao, IntentRouter, Rota, RouterError
 
 
 class FakeResponse:
@@ -247,3 +249,83 @@ async def test_low_confidence_fallback_becomes_outro():
     rota = await make_router(http, fallback=fallback).route("hmm")
     assert rota.intencao is Intencao.OUTRO
     assert rota.origem == "fallback"
+
+
+# --- subtarefa 3: DeepSeekIntentFallback --------------------------------------------------------
+
+
+class FakeCompletions:
+    """Registra as chamadas e devolve um conteúdo fixo, lista vazia ou exceção."""
+
+    def __init__(self, content=None, exc=None, empty=False):
+        self.content = content
+        self.exc = exc
+        self.empty = empty
+        self.calls = []
+
+    async def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if self.exc:
+            raise self.exc
+        if self.empty:
+            return SimpleNamespace(choices=[])
+        message = SimpleNamespace(content=self.content)
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+
+def make_fallback(**kw):
+    completions = FakeCompletions(**kw)
+    client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
+    return DeepSeekIntentFallback(api_key="k", client=client), completions
+
+
+async def test_fallback_builds_request_and_parses():
+    from app.prompts import ROUTER_CRITERIA, ROUTER_FALLBACK_SYSTEM_PROMPT
+
+    fb, completions = make_fallback(content='{"intencao": "leitura", "confianca": 0.83}')
+    rota = await fb.classify("quanto gastei?")
+    call = completions.calls[0]
+    assert call["model"] == "deepseek-flash"
+    assert call["temperature"] == 0
+    assert call["response_format"] == {"type": "json_object"}
+    assert call["messages"][0] == {
+        "role": "system",
+        "content": ROUTER_FALLBACK_SYSTEM_PROMPT.format(**ROUTER_CRITERIA),
+    }
+    assert call["messages"][-1] == {"role": "user", "content": "quanto gastei?"}
+    assert rota.intencao is Intencao.LEITURA
+    assert rota.confianca == pytest.approx(0.83)
+    assert rota.origem == "fallback"
+    assert rota.modelo == "deepseek-flash"
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        {"content": "nada"},
+        {"content": '{"intencao": "comprar", "confianca": 0.9}'},
+        {"content": '{"intencao": "escrita"}'},
+        {"content": '{"intencao": "escrita", "confianca": "alta"}'},
+        {"content": None},
+        {"empty": True},
+    ],
+)
+async def test_fallback_invalid_response_is_outro(kw):
+    fb, _ = make_fallback(**kw)
+    rota = await fb.classify("x")
+    assert rota.intencao is Intencao.OUTRO
+    assert rota.confianca == 0.0
+    assert rota.origem == "fallback"
+
+
+async def test_fallback_confidence_is_clamped():
+    fb, _ = make_fallback(content='{"intencao": "escrita", "confianca": 1.7}')
+    assert (await fb.classify("x")).confianca == 1.0
+    fb, _ = make_fallback(content='{"intencao": "escrita", "confianca": -0.2}')
+    assert (await fb.classify("x")).confianca == 0.0
+
+
+async def test_fallback_api_error_raises_router_error():
+    fb, _ = make_fallback(exc=RuntimeError("401"))
+    with pytest.raises(RouterError):
+        await fb.classify("x")

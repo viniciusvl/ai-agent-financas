@@ -3,6 +3,7 @@ DeepSeek. Spec: specs/tasks/T12-intent-router.md
 """
 
 import asyncio
+import json
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -10,8 +11,9 @@ from enum import StrEnum
 from typing import Any
 
 import httpx
+from openai import AsyncOpenAI
 
-from app.prompts import ROUTER_CRITERIA, ROUTER_INSTRUCTIONS
+from app.prompts import ROUTER_CRITERIA, ROUTER_FALLBACK_SYSTEM_PROMPT, ROUTER_INSTRUCTIONS
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +50,66 @@ class DeepSeekIntentFallback:
         base_url: str = "https://api.deepseek.com",
         client: Any | None = None,
     ) -> None:
-        raise NotImplementedError("T12")
+        # `client` permite injetar um fake nos testes; em produção, openai.AsyncOpenAI.
+        self.model = model
+        self.base_url = base_url
+        self.client: Any = (
+            client if client is not None else AsyncOpenAI(api_key=api_key, base_url=base_url)
+        )
+
+    def _build_messages(self, texto: str) -> list[dict[str, str]]:
+        """Monta o system (prompt formatado) e o user (texto original)."""
+        system = ROUTER_FALLBACK_SYSTEM_PROMPT.format(**ROUTER_CRITERIA)
+        return [
+            {"role": "system", "content": system},
+            {"role": "user", "content": texto},
+        ]
+
+    @staticmethod
+    def _content_from_response(response: Any) -> Any:
+        """Extrai `choices[0].message.content` de forma defensiva ou `None`."""
+        try:
+            return response.choices[0].message.content
+        except (AttributeError, IndexError, KeyError, TypeError):
+            return None
+
+    @staticmethod
+    def _parse_content(content: Any) -> dict[str, Any] | None:
+        """Interpreta o conteúdo bruto do LLM como objeto JSON, ou `None` se inválido."""
+        if not isinstance(content, str):
+            return None
+        try:
+            data = json.loads(content)
+        except (ValueError, TypeError):
+            return None
+        return data if isinstance(data, dict) else None
+
+    @staticmethod
+    def _outro() -> Rota:
+        """Rota padrão para respostas inválidas/ambíguas do fallback."""
+        return Rota(Intencao.OUTRO, 0.0, origem="fallback")
 
     async def classify(self, texto: str) -> Rota:
-        raise NotImplementedError("T12")
+        """Classifica via DeepSeek; formato inválido vira OUTRO e erro da API → `RouterError`."""
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                temperature=0,
+                response_format={"type": "json_object"},
+                messages=self._build_messages(texto),
+            )
+        except Exception as exc:  # noqa: BLE001 - qualquer erro da API vira RouterError
+            raise RouterError("Falha ao consultar a API do DeepSeek (fallback)") from exc
+
+        data = self._parse_content(self._content_from_response(response))
+        if data is None:
+            return self._outro()
+        try:
+            intencao = Intencao(data["intencao"])
+            confianca = min(max(float(data["confianca"]), 0.0), 1.0)
+        except (KeyError, ValueError, TypeError):
+            return self._outro()
+        return Rota(intencao, confianca, origem="fallback", modelo=self.model)
 
 
 class IntentRouter:
