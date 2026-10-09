@@ -108,3 +108,21 @@ def test_watchdog_returns_output_and_code(tmp_path):
     )
     assert code == 0
     assert out.splitlines() == ["a", "b"]
+
+
+def test_watchdog_closes_stdin(tmp_path):
+    import os
+    import sys
+
+    from tools.agent_loop.runner import run_with_watchdog
+
+    # Um processo que lê o stdin até o EOF precisa terminar (stdin fechado).
+    out, code = run_with_watchdog(
+        [sys.executable, "-c", "import sys; print(len(sys.stdin.read()))"],
+        tmp_path,
+        dict(os.environ),
+        total_timeout=30,
+        idle_timeout=10,
+    )
+    assert code == 0
+    assert out.strip() == "0"
