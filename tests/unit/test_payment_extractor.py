@@ -1,12 +1,16 @@
 """Testes unitários do PaymentExtractor (T13, subtarefa 1: init, mensagens e chamada à API)."""
 
-from datetime import datetime
+from datetime import date, datetime, time
+from decimal import Decimal
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import pytest
 
+from app.domain import Currency
 from app.extractor import MSG_DEFAULT_NOT_EXPENSE, MSG_INVALID_RESPONSE, ExtractionError
+from app.messages import MSG_PERGUNTA_PARCELAS, MSG_PERGUNTA_VALOR
+from app.payment import MetodoPagamento
 from app.payment_extractor import PaymentExtractor
 from app.prompts import PAYMENT_EXTRACTION_SYSTEM_PROMPT
 from app.sheet_schema import SheetSchema
@@ -161,3 +165,103 @@ async def test_not_a_payment_uses_reason_then_default(schema):
 
     extractor, _ = _make(schema, content=_payload(is_pagamento=False, motivo=None))
     assert (await extractor.extract(TEXTO, RECEBIDO)).erro == MSG_DEFAULT_NOT_EXPENSE
+
+
+# --- subtarefa 3: perguntas, data/hora e montagem do Pagamento ---------------------------------
+
+
+def _payload_full(**overrides) -> str:
+    data = {
+        "is_pagamento": True,
+        "valor_compra": 35,
+        "moeda": "CNY",
+        "metodo_pagamento": "alipay",
+        "quant_parcelas": None,
+        "categoria": "alimentação",
+        "descricao": "almoço",
+        "data": None,
+        "hora": None,
+        "motivo": None,
+    }
+    data.update(overrides)
+    import json
+
+    return json.dumps(data, ensure_ascii=False)
+
+
+async def test_missing_value_asks_question(schema):
+    extractor, _ = _make(schema, content=_payload_full(valor_compra=None))
+    result = await extractor.extract(TEXTO, RECEBIDO)
+    assert result.pagamento is None
+    assert result.pergunta == MSG_PERGUNTA_VALOR
+
+
+async def test_installments_without_count_asks_question(schema):
+    extractor, _ = _make(
+        schema,
+        content=_payload_full(metodo_pagamento="credito_parcelado", quant_parcelas=None),
+    )
+    result = await extractor.extract(TEXTO, RECEBIDO)
+    assert result.pagamento is None
+    assert result.pergunta == MSG_PERGUNTA_PARCELAS
+
+
+async def test_missing_currency_uses_default(schema):
+    extractor, _ = _make(schema, default_currency="BRL", content=_payload_full(moeda=None))
+    pagamento = (await extractor.extract(TEXTO, RECEBIDO)).pagamento
+    assert pagamento is not None
+    assert pagamento.moeda is Currency.BRL
+
+
+async def test_installments_are_computed_by_the_app(schema):
+    extractor, _ = _make(
+        schema,
+        content=_payload_full(
+            valor_compra=3000,
+            metodo_pagamento="credito_parcelado",
+            quant_parcelas=10,
+            valor_parcela=999,
+        ),
+    )
+    pagamento = (await extractor.extract(TEXTO, RECEBIDO)).pagamento
+    assert pagamento is not None
+    assert pagamento.metodo_pagamento is MetodoPagamento.CREDITO_PARCELADO
+    assert pagamento.quant_parcelas == 10
+    assert pagamento.valor_parcela == Decimal("300.00")
+
+
+async def test_explicit_date_and_time(schema):
+    extractor, _ = _make(schema, content=_payload_full(data="2026-10-08", hora="23:15"))
+    pagamento = (await extractor.extract(TEXTO, RECEBIDO)).pagamento
+    assert pagamento is not None
+    assert pagamento.data == date(2026, 10, 8)
+    assert pagamento.hora == time(23, 15)
+
+
+async def test_past_date_without_time_has_no_time(schema):
+    extractor, _ = _make(schema, content=_payload_full(data="2026-10-07"))
+    pagamento = (await extractor.extract(TEXTO, RECEBIDO)).pagamento
+    assert pagamento is not None
+    assert pagamento.data == date(2026, 10, 7)
+    assert pagamento.hora is None
+
+
+async def test_invalid_date_and_time_fall_back_to_message(schema):
+    extractor, _ = _make(schema, content=_payload_full(data="ontem", hora="25:99"))
+    pagamento = (await extractor.extract(TEXTO, RECEBIDO)).pagamento
+    assert pagamento is not None
+    assert pagamento.data == date(2026, 10, 9)
+    assert pagamento.hora == time(6, 30)
+
+
+async def test_missing_description_uses_text(schema):
+    texto = "  80 kuai " + "x" * 100
+    extractor, _ = _make(schema, content=_payload_full(descricao="   "))
+    pagamento = (await extractor.extract(texto, RECEBIDO)).pagamento
+    assert pagamento is not None
+    assert pagamento.descricao == texto.strip()[:80]
+
+
+async def test_invalid_fields_return_invalid_response(schema):
+    extractor, _ = _make(schema, content=_payload_full(valor_compra=-5))
+    assert (await extractor.extract(TEXTO, RECEBIDO)).erro == MSG_INVALID_RESPONSE

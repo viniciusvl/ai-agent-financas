@@ -6,12 +6,14 @@ calculado pela aplicação (app/payment.py). Spec: specs/tasks/T13-payment-extra
 
 import json
 import logging
+import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, time
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from openai import AsyncOpenAI
+from pydantic import ValidationError
 
 from app.extractor import (
     MSG_DEFAULT_NOT_EXPENSE,
@@ -19,11 +21,15 @@ from app.extractor import (
     ExpenseExtractor,
     ExtractionError,
 )
-from app.payment import Pagamento
+from app.messages import MSG_PERGUNTA_PARCELAS, MSG_PERGUNTA_VALOR
+from app.payment import MetodoPagamento, Pagamento, normalizar_metodo
 from app.prompts import PAYMENT_EXTRACTION_SYSTEM_PROMPT
 from app.sheet_schema import SheetSchema
 
 logger = logging.getLogger(__name__)
+
+# Horário no formato HH:MM (hora com 1 ou 2 dígitos, minutos com 2).
+_TIME_RE = re.compile(r"^\d{1,2}:\d{2}$")
 
 __all__ = [
     "MSG_DEFAULT_NOT_EXPENSE",
@@ -131,5 +137,90 @@ class PaymentExtractor:
         if not data.get("is_pagamento"):
             return ResultadoExtracao(erro=data.get("motivo") or MSG_DEFAULT_NOT_EXPENSE)
 
-        # TODO(T13, subtarefa 3): perguntas de dados faltantes, data/hora e montagem do Pagamento.
-        return ResultadoExtracao()
+        # Passo 7: valor ausente → o bot pergunta ao usuário.
+        if data.get("valor_compra") is None:
+            return ResultadoExtracao(pergunta=MSG_PERGUNTA_VALOR)
+
+        # Passo 8: compra parcelada sem o número de parcelas → o bot pergunta ao usuário.
+        metodo = normalizar_metodo(data.get("metodo_pagamento"))
+        quant_parcelas = data.get("quant_parcelas")
+        if self._precisa_perguntar_parcelas(metodo, quant_parcelas):
+            return ResultadoExtracao(pergunta=MSG_PERGUNTA_PARCELAS)
+
+        data_pagamento, hora_pagamento = self._resolve_data_hora(data, local)
+
+        try:
+            pagamento = Pagamento(
+                metodo_pagamento=metodo,
+                data=data_pagamento,
+                hora=hora_pagamento,
+                quant_parcelas=quant_parcelas,
+                valor_compra=data.get("valor_compra"),
+                moeda=self._resolve_moeda(data.get("moeda")),
+                categoria=data.get("categoria"),
+                descricao=self._resolve_descricao(data.get("descricao"), texto),
+                texto_original=texto,
+            )
+        except ValidationError:
+            return ResultadoExtracao(erro=MSG_INVALID_RESPONSE)
+
+        return ResultadoExtracao(pagamento=pagamento)
+
+    @staticmethod
+    def _precisa_perguntar_parcelas(metodo: MetodoPagamento, quant_parcelas: Any) -> bool:
+        """True quando a compra é parcelada mas a quantidade de parcelas não foi informada.
+
+        Crédito "à vista" com parcelas informadas é convertido em parcelado pelo próprio
+        `Pagamento` (T10), então aqui só falta perguntar quando o número está ausente.
+        """
+        return quant_parcelas is None and metodo is MetodoPagamento.CREDITO_PARCELADO
+
+    @staticmethod
+    def _parse_data(value: Any) -> date | None:
+        """Data ISO devolvida pelo LLM, ou `None` se ausente/inválida."""
+        if isinstance(value, str):
+            try:
+                return date.fromisoformat(value.strip())
+            except ValueError:
+                return None
+        return None
+
+    @staticmethod
+    def _parse_hora(value: Any) -> time | None:
+        """Hora `HH:MM` devolvida pelo LLM, ou `None` se ausente/inválida."""
+        if not isinstance(value, str):
+            return None
+        text = value.strip()
+        if not _TIME_RE.match(text):
+            return None
+        horas, minutos = text.split(":")
+        try:
+            return time(int(horas), int(minutos))
+        except ValueError:
+            return None
+
+    def _resolve_data_hora(self, data: dict[str, Any], local: datetime) -> tuple[date, time | None]:
+        """Resolve data/hora determinísticas a partir do que o LLM devolveu (passo 9)."""
+        data_llm = self._parse_data(data.get("data"))
+        data_final = data_llm if data_llm is not None else local.date()
+
+        hora = self._parse_hora(data.get("hora"))
+        if hora is not None:
+            hora_final: time | None = hora
+        elif data_llm is not None and data_llm != local.date():
+            # O LLM indicou uma data (passada) sem hora: não inventamos a hora de agora.
+            hora_final = None
+        else:
+            hora_final = local.time().replace(second=0, microsecond=0)
+        return data_final, hora_final
+
+    @staticmethod
+    def _resolve_descricao(value: Any, texto: str) -> str:
+        """Descrição do LLM ou, se ausente/vazia, o próprio texto (limitado a 80 chars)."""
+        if isinstance(value, str) and value.strip():
+            return value
+        return texto.strip()[:80]
+
+    def _resolve_moeda(self, value: Any) -> Any:
+        """Usa a moeda devolvida pelo LLM ou a padrão quando ausente (passo 11)."""
+        return self.default_currency if value is None else value
