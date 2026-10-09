@@ -24,11 +24,12 @@ domínio real do bot.
    ```
 
    Saia e entre de novo na sessão SSH para o grupo `docker` valer.
-4. Clone o repositório e entre na branch de deploy:
+4. Clone o repositório; a produção acompanha a branch `main`:
 
    ```bash
    git clone <url-do-repositorio> china-financas-bot
    cd china-financas-bot
+   git checkout main
    ```
 
 ## 2. DNS
@@ -74,16 +75,23 @@ domínio real do bot.
 
 ## 4. Nginx e HTTPS
 
+O certificado é emitido com `certbot certonly --webroot`, então o Nginx precisa
+estar no ar servindo o desafio ACME **antes** de existir HTTPS. Por isso o
+bootstrap do TLS é feito em duas fases: primeiro um bloco somente HTTP (porta 80),
+depois a config completa com TLS.
+
 1. Instale o Nginx e o `certbot`:
 
    ```bash
-   sudo apt-get install -y nginx certbot python3-certbot-nginx
+   sudo apt-get install -y nginx certbot
    ```
 
-2. Copie a configuração do projeto para o Nginx e ajuste o domínio:
+2. **Fase 1 — config somente HTTP (porta 80).** Habilite
+   `china-financas-bot.http-only.conf`, que serve `/.well-known/acme-challenge/`
+   para o desafio, ajuste o domínio, valide e suba o Nginx:
 
    ```bash
-   sudo cp deploy/nginx/china-financas-bot.conf \
+   sudo cp deploy/nginx/china-financas-bot.http-only.conf \
      /etc/nginx/sites-available/china-financas-bot.conf
    sudo sed -i 's/bot.SEU-DOMINIO.com/SEU-DOMINIO-REAL.com/g' \
      /etc/nginx/sites-available/china-financas-bot.conf
@@ -91,29 +99,44 @@ domínio real do bot.
      /etc/nginx/sites-enabled/china-financas-bot.conf
    sudo rm -f /etc/nginx/sites-enabled/default
    sudo nginx -t
+   sudo systemctl reload nginx
    ```
 
-3. Gere o certificado do Let's Encrypt com o `certbot`. O bloco HTTP da config
-   já serve `/.well-known/acme-challenge/` para o desafio:
+3. Emita o certificado apontando para o `webroot`. O `--deploy-hook` fica salvo
+   na renovação e recarrega o Nginx a cada renovação:
 
    ```bash
    sudo mkdir -p /var/www/certbot
    sudo certbot certonly --webroot -w /var/www/certbot \
-     -d bot.SEU-DOMINIO.com
+     -d bot.SEU-DOMINIO.com \
+     --deploy-hook "systemctl reload nginx"
+   ```
+
+4. **Fase 2 — config completa com TLS.** Agora que os certificados existem,
+   substitua a config e recarregue:
+
+   ```bash
+   sudo cp deploy/nginx/china-financas-bot.conf \
+     /etc/nginx/sites-available/china-financas-bot.conf
+   sudo sed -i 's/bot.SEU-DOMINIO.com/SEU-DOMINIO-REAL.com/g' \
+     /etc/nginx/sites-available/china-financas-bot.conf
+   sudo nginx -t
+   sudo systemctl reload nginx
    ```
 
    O Nginx expõe publicamente apenas `location /telegram/webhook` e
    `location /health` (proxy para `127.0.0.1:8000`); qualquer outra rota retorna
    `404`. O HTTP é redirecionado para HTTPS com `return 301`.
-4. Recarregue o Nginx e teste o redirect e o health:
+
+5. Teste o redirect e o health:
 
    ```bash
-   sudo systemctl reload nginx
    curl -I https://bot.SEU-DOMINIO.com/health
    ```
 
-5. A renovação do certificado já é agendada pelo pacote do `certbot`
-   (`systemctl list-timers | grep certbot`); recarregue o Nginx após renovar:
+6. A renovação já é agendada pelo pacote do `certbot`
+   (`systemctl list-timers | grep certbot`); o `--deploy-hook` do passo 3
+   recarrega o Nginx automaticamente após renovar. Valide o fluxo com:
 
    ```bash
    sudo certbot renew --dry-run
@@ -131,8 +154,9 @@ domínio real do bot.
 4. **Compartilhe a planilha com o e-mail da conta de serviço** com permissão de
    **Editor** — sem isso o bot não consegue ler nem escrever.
 5. Copie o **ID da planilha** (trecho entre `/d/` e `/edit` na URL) para a
-   variável `GOOGLE_SHEET_ID` e ajuste o nome da aba em `GOOGLE_WORKSHEET_NAME`
-   (padrão `Gastos`).
+   variável `GOOGLE_SHEET_ID`. O nome da aba **não** é variável de ambiente: ele
+   vem do campo `aba:` em `config/planilha.yaml` (padrão `Gastos`) — ajuste ali
+   se a planilha usar outro nome.
 
 ## 6. Variáveis de ambiente
 
@@ -169,7 +193,6 @@ SHEET_SCHEMA_PATH=config/planilha.yaml
 # Google Sheets
 GOOGLE_SERVICE_ACCOUNT_FILE=secrets/google-service-account.json
 GOOGLE_SHEET_ID=...
-GOOGLE_WORKSHEET_NAME=Gastos
 
 # App
 TIMEZONE=Asia/Shanghai

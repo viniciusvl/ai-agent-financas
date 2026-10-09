@@ -27,6 +27,9 @@ async def _register(token: str, url: str, secret: str) -> bool:
 
 def main(argv: list[str] | None = None) -> int:
     """Ponto de entrada: registra o webhook e devolve o código de saída."""
+    # Garante que o resultado (info/erro) apareça no console; nunca loga o token.
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
     parser = argparse.ArgumentParser(
         description="Registra o webhook do Telegram na URL pública configurada.",
     )
