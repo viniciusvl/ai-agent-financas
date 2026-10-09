@@ -4,11 +4,12 @@ Spec: specs/tasks/T15-read-path.md
 """
 
 import logging
+import math
 import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 
@@ -21,6 +22,9 @@ logger = logging.getLogger(__name__)
 Totais = dict[str, Decimal]  # moeda → total
 
 _CENTAVOS = Decimal("0.01")
+
+# Época dos números de série de datas do Google Sheets (dia 0).
+_EPOCA_SHEETS = date(1899, 12, 30)
 
 # Prefixos das moedas conhecidas; demais recebem "<MOEDA> ".
 _PREFIXOS_MOEDA: dict[str, str] = {
@@ -78,11 +82,20 @@ def _parse_valor(valor: Any) -> Decimal:
 
 
 def _parse_data(valor: Any, formato: str | None) -> date:
-    """Converte a célula de data; aceita `date`/`datetime` e strings em formatos conhecidos."""
+    """Converte a célula de data.
+
+    Aceita `date`/`datetime`, número (serial do Sheets) e strings em formatos conhecidos.
+    """
     if isinstance(valor, datetime):
         return valor.date()
     if isinstance(valor, date):
         return valor
+    if isinstance(valor, bool):
+        raise ValueError(f"data inválida: {valor!r}")
+    if isinstance(valor, (int, float)):
+        if isinstance(valor, float) and not math.isfinite(valor):
+            raise ValueError(f"data inválida: {valor!r}")
+        return _EPOCA_SHEETS + timedelta(days=int(valor))
     if isinstance(valor, str):
         texto = valor.strip()
         if texto:
@@ -275,7 +288,7 @@ class GastosRepository:
         try:
             rows = self._worksheet.get_all_values(
                 value_render_option="UNFORMATTED_VALUE",
-                date_time_render_option="FORMATTED_STRING",
+                date_time_render_option="SERIAL_NUMBER",
             )
         except Exception as exc:  # qualquer falha do worksheet vira ReadError
             raise ReadError(f"falha ao ler a planilha: {exc}") from exc

@@ -68,6 +68,20 @@ def test_parse_rows_aceita_simbolos_e_formatos():
     assert regs[1].moeda == "BRL"
 
 
+def test_parse_rows_data_numerica_e_serial_do_sheets():
+    # serial do Sheets: dias desde 1899-12-30 (46304 == 2026-10-09); fração = hora
+    regs = parse_rows(SCHEMA, [[46304, "ok", "outros", "outro", 1, 10, "CNY"]])
+    assert regs[0].data == date(2026, 10, 9)
+    regs = parse_rows(SCHEMA, [[46304.75, "ok", "outros", "outro", 1, 10, "CNY"]])
+    assert regs[0].data == date(2026, 10, 9)
+
+
+def test_parse_rows_data_booleana_ignorada(caplog):
+    caplog.set_level(logging.WARNING)
+    assert parse_rows(SCHEMA, [[True, "ok", "outros", "outro", 1, 10, "CNY"]]) == []
+    assert caplog.records
+
+
 def test_parse_rows_colunas_ausentes_usam_padroes():
     schema = SheetSchema.from_dict(
         {

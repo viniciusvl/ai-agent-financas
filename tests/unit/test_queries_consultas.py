@@ -116,7 +116,7 @@ def test_repositorio_usa_render_options_e_cache_por_ttl():
     repo = GastosRepository(ws, SCHEMA, ttl_seconds=60, clock=clock)
     assert len(repo.registros()) == 2
     assert ws.calls == [
-        {"value_render_option": "UNFORMATTED_VALUE", "date_time_render_option": "FORMATTED_STRING"}
+        {"value_render_option": "UNFORMATTED_VALUE", "date_time_render_option": "SERIAL_NUMBER"}
     ]
     clock.t = 59
     repo.registros()
