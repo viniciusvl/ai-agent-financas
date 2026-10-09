@@ -41,18 +41,32 @@ Registrado em, Texto original.
   processo; updates duplicados do Telegram são ignorados.
 - **Operação:** Docker Compose na EC2, Nginx com TLS (Let's Encrypt) na frente, `/health`.
 
-## Arquitetura (módulos)
+## Arquitetura v2 (módulos) — ver issue #23
+
+```
+mensagem → [Whisper se áudio] → ROTEADOR (Jev; fallback DeepSeek)
+  ├─ escrita → extrator (DeepSeek) → Pagamento (parcelas calculadas pela aplicação)
+  │            → confirmação → escritor determinístico no formato de config/planilha.yaml
+  ├─ leitura → agente de leitura (DeepSeek escolhe a consulta) → consultas determinísticas
+  └─ outro   → ajuda
+```
 
 | Módulo | Responsabilidade | Task |
 |---|---|---|
-| `app/domain.py` | modelo `Expense`, normalização, formatação | T01 |
+| `app/domain.py` | regras de valor/moeda/categoria/descrição (base) | T01 |
 | `app/telegram_api.py` | cliente da Bot API | T02 |
 | `app/stt.py` | transcrição Whisper | T03 |
-| `app/extractor.py` | extração com DeepSeek | T04 |
+| `app/extractor.py` | extrator v1 (base de robustez do v2) | T04 |
 | `app/pending_store.py` | pendentes em SQLite | T05 |
-| `app/sheets.py` | Google Sheets | T06 |
-| `app/bot.py` | orquestração do fluxo | T07 |
+| `app/sheets.py` | escrita no Sheets (v1 + escritor por schema) | T06, T14 |
+| `app/payment.py` | `Pagamento` e cálculo de parcelas | T10 |
+| `app/sheet_schema.py` + `config/planilha.yaml` | formato padrão da planilha | T11 |
+| `app/router.py` | roteador de intenção (Jev) | T12 |
+| `app/payment_extractor.py` | extração de pagamentos | T13 |
+| `app/queries.py`, `app/read_agent.py` | caminho de leitura | T15 |
+| `app/bot.py` | orquestração do fluxo | T16 |
+| `evals/`, `tools/run_evals.py` | avaliação do roteador/extrator | T17 |
 | `app/main.py` | FastAPI + webhook + wiring | T08 |
 | Docker/Nginx/docs | deploy na EC2 | T09 |
 
-Ordem/dependências: T01 → (T02, T03, T04, T05, T06 — independentes entre si, executadas em sequência) → T07 → T08 → T09.
+Ordem: T01–T06 → T10 → (T11, T12) → (T13, T14, T15) → T16 → T17 → T08 → T09.

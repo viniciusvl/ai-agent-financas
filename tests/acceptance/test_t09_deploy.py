@@ -19,6 +19,7 @@ def test_dockerfile():
     content = read("Dockerfile")
     assert "FROM python:3.12-slim" in content
     assert "requirements.txt" in content
+    assert "config" in content, "a imagem precisa do config/planilha.yaml"
     assert "EXPOSE 8000" in content
     assert "--factory" in content and "app.main:create_app" in content
     assert "USER " in content, "o container não deve rodar como root"
@@ -36,6 +37,7 @@ def test_compose():
     assert "env_file" in content and ".env" in content
     assert "./data:/app/data" in content
     assert "./secrets:/app/secrets:ro" in content
+    assert "./config:/app/config:ro" in content
     assert "restart: unless-stopped" in content
     assert "healthcheck" in content and "/health" in content
 
