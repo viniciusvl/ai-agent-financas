@@ -70,9 +70,10 @@ class PendingStore:
         return pending_id
 
     def get(self, pending_id: str) -> PendingExpense | None:
-        """Recupera um gasto pendente pelo id; `None` se não existir.
+        """Recupera um gasto pendente pelo id; `None` se não existir ou expirado.
 
-        Spec: specs/tasks/T05-pending-store.md
+        Um item expira quando `clock() - created_at > ttl_seconds` (exatamente no
+        limite ainda é válido). Spec: specs/tasks/T05-pending-store.md
         """
         with sqlite3.connect(self.db_path) as conn:
             row = conn.execute(
@@ -80,6 +81,8 @@ class PendingStore:
                 (pending_id,),
             ).fetchone()
         if row is None:
+            return None
+        if self.clock() - row[4] > self.ttl_seconds:
             return None
         return PendingExpense(
             id=row[0],
@@ -90,7 +93,20 @@ class PendingStore:
         )
 
     def delete(self, pending_id: str) -> bool:
-        raise NotImplementedError("T05")
+        """Remove um gasto pendente; `True` se removeu algo.
+
+        Spec: specs/tasks/T05-pending-store.md
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("DELETE FROM pending WHERE id = ?", (pending_id,))
+        return cursor.rowcount > 0
 
     def purge_expired(self) -> int:
-        raise NotImplementedError("T05")
+        """Remove todos os gastos expirados e retorna a quantidade removida.
+
+        Spec: specs/tasks/T05-pending-store.md
+        """
+        threshold = self.clock() - self.ttl_seconds
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("DELETE FROM pending WHERE created_at < ?", (threshold,))
+        return cursor.rowcount
