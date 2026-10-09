@@ -170,7 +170,24 @@ class SheetSchema:
         return celulas
 
     def prompt_context(self) -> str:
-        raise NotImplementedError("T11")
+        """Descrição do formato da planilha para injetar no contexto dos prompts."""
+        linhas = [f"Colunas da planilha (aba {self.aba}):"]
+        for coluna in self.colunas:
+            linha = f"- {coluna.nome}: campo {coluna.campo}, tipo {coluna.tipo}"
+            if coluna.formato:
+                linha += f", formato {coluna.formato}"
+            linhas.append(linha)
+        return "\n".join(linhas)
 
     def validate_header(self, header: list[str]) -> None:
-        raise NotImplementedError("T11")
+        """Confere o cabeçalho real contra o schema, apontando a 1ª divergência (1-based)."""
+        esperado = self.header()
+        for i, nome in enumerate(esperado):
+            if i >= len(header) or header[i] != nome:
+                encontrado = header[i] if i < len(header) else None
+                raise SchemaError(
+                    f"cabeçalho divergente na posição {i + 1}: "
+                    f"esperado {nome!r}, encontrado {encontrado!r}"
+                )
+        if len(header) > len(esperado):
+            raise SchemaError(f"cabeçalho com {len(header)} colunas; esperado {len(esperado)}")
