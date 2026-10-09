@@ -9,6 +9,7 @@ from typing import Any
 import gspread
 
 from app.domain import SHEET_HEADER, Expense, to_sheet_row
+from app.sheet_schema import SchemaError
 
 
 class SheetsError(Exception):
@@ -110,18 +111,68 @@ class PagamentoSheetWriter:
     """
 
     def __init__(self, worksheet: Any, schema: Any) -> None:
-        raise NotImplementedError("T14")
+        # A idempotência por `id_gasto` depende de uma coluna com `campo: id`.
+        if not any(coluna.campo == "id" for coluna in schema.colunas):
+            raise SheetsError("schema sem coluna com campo 'id' (necessária para a idempotência)")
+        self.worksheet = worksheet
+        self.schema = schema
+        # Memoriza o sucesso de `ensure_header` para ler o cabeçalho apenas uma vez.
+        self._header_ready = False
 
     @classmethod
     def from_service_account(
         cls, service_account_file: str, sheet_id: str, schema: Any
     ) -> "PagamentoSheetWriter":
+        # Subtarefa 3 (sessão futura).
         raise NotImplementedError("T14")
 
     def ensure_header(self) -> None:
-        raise NotImplementedError("T14")
+        """Garante que a primeira linha seja o cabeçalho do schema.
+
+        Aba vazia recebe o cabeçalho; cabeçalho divergente levanta `SheetsError`.
+        """
+        try:
+            current = self.worksheet.row_values(1)
+        except SheetsError:
+            raise
+        except Exception as exc:
+            raise SheetsError("falha ao ler o cabeçalho da planilha") from exc
+
+        if not current:
+            try:
+                self.worksheet.insert_row(self.schema.header(), index=1)
+            except SheetsError:
+                raise
+            except Exception as exc:
+                raise SheetsError("falha ao criar o cabeçalho da planilha") from exc
+            return
+
+        try:
+            self.schema.validate_header(current)
+        except SchemaError as exc:
+            raise SheetsError(str(exc)) from exc
 
     def append_pagamento(
         self, pagamento: Any, usuario: str, registrado_em: datetime, id_gasto: str
     ) -> bool:
-        raise NotImplementedError("T14")
+        """Anexa o pagamento na planilha, garantindo o cabeçalho antes."""
+        if not self._header_ready:
+            self.ensure_header()
+            self._header_ready = True
+
+        try:
+            linha = self.schema.to_row(
+                pagamento,
+                {"id": id_gasto, "usuario": usuario, "registrado_em": registrado_em},
+            )
+        except SchemaError as exc:
+            raise SheetsError(str(exc)) from exc
+
+        linha = _escape_formula_cells(linha)
+        try:
+            self.worksheet.append_row(linha, value_input_option="USER_ENTERED")
+        except SheetsError:
+            raise
+        except Exception as exc:
+            raise SheetsError("falha ao gravar o pagamento na planilha") from exc
+        return True
