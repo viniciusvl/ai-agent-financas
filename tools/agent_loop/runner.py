@@ -25,6 +25,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -33,7 +34,8 @@ ROOT = Path(__file__).resolve().parents[2]
 BASE_BRANCH = "develop"
 REVIEW_MARKER = "## 🔍 Revisão"
 SCOPE_ALWAYS_ALLOWED = ("tests/unit/",)
-SESSION_TIMEOUT_S = 20 * 60  # sessões normais levam 1–4 min; acima disso, chamada travada
+SESSION_TIMEOUT_S = 20 * 60  # sessões normais levam 1–4 min
+IDLE_TIMEOUT_S = 6 * 60  # sem nenhum evento do opencode: chamada ao modelo travada
 TAIL_CHARS = 3500
 
 
@@ -120,6 +122,7 @@ def run(
         args,
         cwd=cwd,
         env=env,
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -414,6 +417,59 @@ def build_prompt(task: TaskSpec, number: int, session: int, last_report: str, re
     return "\n".join(parts)
 
 
+def run_with_watchdog(
+    cmd: list[str], cwd: Path, env: dict[str, str], total_timeout: float, idle_timeout: float
+) -> tuple[str, int]:
+    """Executa o comando lendo a saída em streaming e o encerra se ficar ocioso.
+
+    Com `--format json` o opencode emite eventos durante a sessão; uma chamada ao modelo
+    travada fica em silêncio. Sem saída por `idle_timeout` s (ou acima de `total_timeout` s),
+    o processo é encerrado e o código de saída é -1.
+    """
+    proc = subprocess.Popen(
+        cmd,
+        cwd=cwd,
+        env=env,
+        # `opencode run` lê a mensagem também do stdin: herdado e aberto, ele espera um EOF
+        # que nunca chega e a sessão trava sem emitir nenhum evento.
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    lines: list[str] = []
+    last_activity = [time.monotonic()]
+
+    def reader() -> None:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            lines.append(line)
+            last_activity[0] = time.monotonic()
+
+    thread = threading.Thread(target=reader, daemon=True)
+    thread.start()
+    start = time.monotonic()
+    killed_reason = ""
+    while proc.poll() is None:
+        now = time.monotonic()
+        if now - last_activity[0] > idle_timeout:
+            killed_reason = f"sem atividade por {idle_timeout:.0f}s"
+        elif now - start > total_timeout:
+            killed_reason = f"acima de {total_timeout:.0f}s"
+        if killed_reason:
+            proc.kill()
+            break
+        time.sleep(1)
+    proc.wait()
+    thread.join(timeout=5)
+    if killed_reason:
+        log(f"sessão encerrada pelo watchdog ({killed_reason})")
+        return "".join(lines), -1
+    return "".join(lines), proc.returncode
+
+
 def run_session(task: TaskSpec, cwd: Path, session: int, prompt: str) -> str:
     log_dir = cwd / ".agent" / "logs" / task.id
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -437,12 +493,7 @@ def run_session(task: TaskSpec, cwd: Path, session: int, prompt: str) -> str:
         str(prompt_file),
         f"Execute a sessão {session} da task {task.id} seguindo as instruções do arquivo anexado.",
     ]
-    try:
-        result = run(cmd, cwd, check=False, env=env, timeout=SESSION_TIMEOUT_S)
-        output, code = result.stdout, result.returncode
-    except subprocess.TimeoutExpired as exc:
-        output = exc.stdout if isinstance(exc.stdout, str) else ""
-        code = -1
+    output, code = run_with_watchdog(cmd, cwd, env, SESSION_TIMEOUT_S, IDLE_TIMEOUT_S)
     log_file.write_text(output or "", encoding="utf-8")
     texts = []
     for line in (output or "").splitlines():
