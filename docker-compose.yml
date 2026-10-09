@@ -1,0 +1,28 @@
+# Orquestração do bot na EC2. Ver specs/tasks/T09-deploy.md e docs/deploy.md.
+services:
+  bot:
+    build: .
+    env_file: .env
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      # Banco SQLite persistente.
+      - ./data:/app/data
+      # Credenciais do Google (somente leitura).
+      - ./secrets:/app/secrets:ro
+      # Permite editar o formato da planilha sem rebuild.
+      - ./config:/app/config:ro
+    restart: unless-stopped
+    healthcheck:
+      # A imagem slim não traz curl; usamos o urllib do próprio Python.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
