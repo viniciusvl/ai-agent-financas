@@ -25,8 +25,9 @@ textos: `app/messages.py` (`MSG_LEITURA_NAO_SUPORTADA`, `MSG_NENHUM_GASTO`,
   vazio → `MSG_NENHUM_GASTO`.
 - `parse_rows(schema, rows)`: `rows` são as linhas **sem** o cabeçalho. Para cada linha, pega as
   colunas pelo `campo` do schema:
-  - `data` (obrigatória): `date`/`datetime` aceitos direto; string tentada com o `formato` da
-    coluna, depois `%Y-%m-%d`, depois `%d/%m/%Y`.
+  - `data` (obrigatória): `date`/`datetime` aceitos direto; **número** (`int`/`float`) é o
+    *serial* do Sheets → `date(1899, 12, 30) + timedelta(days=int(valor))`; string tentada com
+    o `formato` da coluna, depois `%Y-%m-%d`, depois `%d/%m/%Y`.
   - `valor_compra` (obrigatório): número ou string (aceita `1.234,56`, `1234.56`, `R$ 10,00`,
     `¥ 35`); > 0.
   - `moeda` (padrão `CNY`), `categoria` (`outros`), `metodo_pagamento` (`outro`),
@@ -44,7 +45,8 @@ textos: `app/messages.py` (`MSG_LEITURA_NAO_SUPORTADA`, `MSG_NENHUM_GASTO`,
     as parcelas com vencimento **no mês de `referencia` ou depois**.
 - `GastosRepository(worksheet, schema, ttl_seconds=60, clock)`: `registros()` chama
   `worksheet.get_all_values(value_render_option="UNFORMATTED_VALUE",
-  date_time_render_option="FORMATTED_STRING")`, descarta a 1ª linha (cabeçalho) e aplica
+  date_time_render_option="SERIAL_NUMBER")` (datas como número serial: não dependem do locale
+  da planilha — em en-US, "10/9/2026" exibido seria lido como 10 de setembro), descarta a 1ª linha (cabeçalho) e aplica
   `parse_rows`; resultado em cache por `ttl_seconds` (pelo `clock`); `invalidate()` limpa o cache.
   Erros do worksheet → `ReadError` (definido em `app/queries.py`, reexportado por
   `app/read_agent.py`).
