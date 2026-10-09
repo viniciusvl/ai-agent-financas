@@ -119,9 +119,14 @@ def test_parse_rows_with_minimal_schema_uses_defaults():
             ],
         }
     )
-    regs = parse_rows(schema, [["08/10/2026", "R$ 10,00"], [date(2026, 10, 9), 5]])
+    regs = parse_rows(
+        schema, [["08/10/2026", "R$ 10,00"], [date(2026, 10, 9), 5], [46304, 7], [46304.75, 8]]
+    )
     assert regs[0] == Registro(data=date(2026, 10, 8), valor_compra=D("10.00"))
     assert regs[1].data == date(2026, 10, 9) and regs[1].moeda == "CNY"
+    # serial do Sheets: dias desde 1899-12-30 (46304 == 2026-10-09; fração = hora)
+    assert regs[2].data == date(2026, 10, 9)
+    assert regs[3].data == date(2026, 10, 9)
 
 
 # --- consultas ----------------------------------------------------------------------------------
@@ -190,7 +195,7 @@ def test_repository_reads_with_render_options_and_caches():
     repo = GastosRepository(ws, _schema(), ttl_seconds=60, clock=clock)
     assert repo.registros() == _regs()
     assert ws.calls == [
-        {"value_render_option": "UNFORMATTED_VALUE", "date_time_render_option": "FORMATTED_STRING"}
+        {"value_render_option": "UNFORMATTED_VALUE", "date_time_render_option": "SERIAL_NUMBER"}
     ]
     clock.t = 59
     repo.registros()
