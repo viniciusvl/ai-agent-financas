@@ -11,9 +11,19 @@ from zoneinfo import ZoneInfo
 
 from openai import AsyncOpenAI
 
-from app.messages import MSG_LEITURA_NAO_SUPORTADA
+from app.messages import MSG_LEITURA_NAO_SUPORTADA, MSG_NENHUM_GASTO, MSG_NENHUMA_PARCELA
 from app.prompts import READ_AGENT_SYSTEM_PROMPT
-from app.queries import GastosRepository, ReadError
+from app.queries import (
+    GastosRepository,
+    ReadError,
+    format_totais,
+    format_valor,
+    parcelas_futuras,
+    total_periodo,
+    total_por_categoria,
+    total_por_metodo,
+    ultimos,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +133,35 @@ def _parse_data_arg(valor: Any) -> date:
         raise _ChamadaInvalida(f"data inválida: {valor!r}") from exc
 
 
+def _parse_n_arg(valor: Any) -> int:
+    """Interpreta o argumento opcional `n`; ausente usa o padrão 5."""
+    if valor is None:
+        return 5
+    if isinstance(valor, bool):
+        raise _ChamadaInvalida(f"n inválido: {valor!r}")
+    if isinstance(valor, int):
+        return valor
+    if isinstance(valor, float) and valor.is_integer():
+        return int(valor)
+    if isinstance(valor, str):
+        try:
+            return int(valor.strip())
+        except ValueError as exc:
+            raise _ChamadaInvalida(f"n inválido: {valor!r}") from exc
+    raise _ChamadaInvalida(f"n inválido: {valor!r}")
+
+
+def _format_data(valor: date) -> str:
+    """Formata uma data como `dd/mm/aaaa`."""
+    return f"{valor:%d/%m/%Y}"
+
+
+def _format_mes(chave: str) -> str:
+    """Converte `AAAA-MM` em `MM/AAAA`."""
+    ano, mes = chave.split("-")
+    return f"{mes}/{ano}"
+
+
 class ReadAgent:
     """Escolhe a consulta via tool calling do LLM e (a partir da subtarefa 4) responde."""
 
@@ -172,11 +211,13 @@ class ReadAgent:
                 if campo not in argumentos:
                     raise _ChamadaInvalida(f"argumento obrigatório ausente: {campo}")
                 _parse_data_arg(argumentos[campo])
+        elif nome == "ultimos_gastos":
+            _parse_n_arg(argumentos.get("n"))
 
         return nome, argumentos
 
     async def answer(self, pergunta: str, agora: datetime) -> str:
-        """Passos 1–3: monta as mensagens, chama o LLM e valida a tool call escolhida."""
+        """Passos 1–5: escolhe a consulta via LLM, executa sobre a planilha e formata."""
         hoje = agora.astimezone(ZoneInfo(self.timezone)).date()
         dia_semana = _DIAS_SEMANA[hoje.weekday()]
         mensagens = [
@@ -206,7 +247,64 @@ class ReadAgent:
             logger.warning("consulta de leitura não suportada: %s", exc)
             return MSG_LEITURA_NAO_SUPORTADA
 
-        # TODO(subtarefa 4): executar a consulta sobre `self.repo.registros()` e formatar
-        # a resposta (passos 4–5). Até lá, uma chamada válida ainda não é respondida.
+        registros = self._carregar_registros()
         logger.debug("ferramenta escolhida: %s (%s)", nome, argumentos)
-        return MSG_LEITURA_NAO_SUPORTADA
+        return self._responder(nome, argumentos, registros, hoje)
+
+    def _carregar_registros(self) -> list[Any]:
+        """Lê os registros do repositório; qualquer falha vira `ReadError`."""
+        try:
+            return self.repo.registros()
+        except ReadError:
+            raise
+        except Exception as exc:
+            raise ReadError(f"falha ao ler a planilha: {exc}") from exc
+
+    def _responder(
+        self, nome: str, argumentos: dict[str, Any], registros: list[Any], hoje: date
+    ) -> str:
+        """Passos 4–5: executa a consulta escolhida e formata a resposta (datas dd/mm/aaaa)."""
+        if nome in _FERRAMENTAS_PERIODO:
+            inicio = _parse_data_arg(argumentos["inicio"])
+            fim = _parse_data_arg(argumentos["fim"])
+            if inicio > fim:
+                inicio, fim = fim, inicio
+            de, ate = _format_data(inicio), _format_data(fim)
+            if nome == "total_periodo":
+                totais = total_periodo(registros, inicio, fim)
+                return f"💰 Total de {de} a {ate}: {format_totais(totais)}"
+            if nome == "total_por_categoria":
+                grupos = total_por_categoria(registros, inicio, fim)
+                cabecalho = f"📊 Gastos por categoria de {de} a {ate}:"
+            else:
+                grupos = total_por_metodo(registros, inicio, fim)
+                cabecalho = f"💳 Gastos por forma de pagamento de {de} a {ate}:"
+            return self._format_grupos(cabecalho, grupos)
+
+        if nome == "ultimos_gastos":
+            n = max(1, min(20, _parse_n_arg(argumentos.get("n"))))
+            lista = ultimos(registros, n)
+            if not lista:
+                return f"🧾 Últimos gastos:\n{MSG_NENHUM_GASTO}"
+            linhas = [
+                f"• {reg.data:%d/%m} — {reg.descricao} — "
+                f"{format_valor(reg.moeda, reg.valor_compra)}"
+                for reg in lista
+            ]
+            return "\n".join(["🧾 Últimos gastos:", *linhas])
+
+        meses = parcelas_futuras(registros, hoje)
+        if not meses:
+            return f"📅 Parcelas futuras:\n{MSG_NENHUMA_PARCELA}"
+        linhas = [
+            f"• {_format_mes(chave)}: {format_totais(totais)}" for chave, totais in meses.items()
+        ]
+        return "\n".join(["📅 Parcelas futuras:", *linhas])
+
+    @staticmethod
+    def _format_grupos(cabecalho: str, grupos: dict[str, dict[str, Any]]) -> str:
+        """Cabeçalho + uma linha `• {chave}: {totais}` por grupo (ordem alfabética)."""
+        if not grupos:
+            return f"{cabecalho}\n{MSG_NENHUM_GASTO}"
+        linhas = [f"• {chave}: {format_totais(totais)}" for chave, totais in sorted(grupos.items())]
+        return "\n".join([cabecalho, *linhas])
