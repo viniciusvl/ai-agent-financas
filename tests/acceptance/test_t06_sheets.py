@@ -76,6 +76,26 @@ def test_append_expense_on_empty_sheet_writes_header_then_row():
     assert ws.append_calls == [{"values": expected_row, "value_input_option": "USER_ENTERED"}]
 
 
+def test_text_cells_that_look_like_formulas_are_escaped():
+    ws = FakeWorksheet(rows=[SHEET_HEADER])
+    tricky = Expense(
+        amount=Decimal("30"),
+        description="=1+1",
+        category="outros",
+        spent_at=date(2026, 10, 8),
+        raw_text="-30 reembolso",
+    )
+    SheetsRepository(ws).append_expense(tricky, "@vini", RECORDED_AT)
+    row = ws.append_calls[0]["values"]
+    expected = to_sheet_row(tricky, "@vini", RECORDED_AT)
+    assert row[1] == "'=1+1"
+    assert row[6] == "'@vini"
+    assert row[8] == "'-30 reembolso"
+    assert row[3] == 30.0
+    for index in (0, 2, 4, 5, 7):
+        assert row[index] == expected[index]
+
+
 def test_header_is_checked_only_once():
     ws = FakeWorksheet()
     repo = SheetsRepository(ws)
