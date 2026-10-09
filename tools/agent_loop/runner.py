@@ -2,7 +2,12 @@
 os critérios de aceite da task sejam atingidos.
 
 Uso:
-    python -m tools.agent_loop.runner T01 [--max-sessions 8] [--clone] [--force]
+    python -m tools.agent_loop.runner T01 [--max-sessions 8] [--force]
+
+As tasks rodam UMA DE CADA VEZ, no checkout principal. Não há isolamento paralelo confiável:
+o opencode identifica o projeto pelo repositório (remoto/commit raiz) e executa as ferramentas
+no diretório registrado do projeto — git worktrees não registrados e clones com o mesmo
+`origin` acabam editando/commitando no checkout principal (incidente dos PRs #15/#16).
 
 Cada volta do loop:
   1. abre uma sessão NOVA do opencode (sem memória) com a spec, o status e o feedback;
@@ -161,27 +166,8 @@ def tail(text: str, limit: int = TAIL_CHARS) -> str:
 # --------------------------------------------------------------------------- workspace
 
 
-def clone_dir(task: TaskSpec) -> Path:
-    return ROOT.parent / f"{ROOT.name}-agents" / task.id
-
-
-def prepare_clone(task: TaskSpec) -> Path:
-    """Clone independente por task.
-
-    Git worktrees NÃO isolam o opencode: ele resolve a raiz do projeto pelo diretório .git
-    comum e passa a editar/commitar no checkout principal. Um clone tem o próprio .git.
-    """
-    cwd = clone_dir(task)
-    if not (cwd / ".git").exists():
-        cwd.parent.mkdir(parents=True, exist_ok=True)
-        run(["git", "clone", "-q", str(ROOT), str(cwd)], ROOT.parent)
-        git(cwd, "remote", "set-url", "origin", git(ROOT, "remote", "get-url", "origin"))
-    git(cwd, "fetch", "origin", "--prune")
-    return cwd
-
-
-def prepare_workspace(task: TaskSpec, use_clone: bool) -> Path:
-    cwd = prepare_clone(task) if use_clone else ROOT
+def prepare_workspace(task: TaskSpec) -> Path:
+    cwd = ROOT
     git(cwd, "fetch", "origin", "--prune")
     remote_exists = bool(git(cwd, "ls-remote", "--heads", "origin", task.branch))
     local_exists = bool(git(cwd, "branch", "--list", task.branch))
@@ -423,8 +409,7 @@ def run_session(task: TaskSpec, cwd: Path, session: int, prompt: str) -> str:
     cmd = [
         opencode_bin(),
         "run",
-        # Servidor privado no diretório da task: o serviço compartilhado do opencode executa
-        # as ferramentas no diretório em que foi iniciado (quebra o isolamento dos worktrees).
+        # Servidor privado, sem depender do serviço em segundo plano compartilhado.
         "--standalone",
         "--agent",
         "executor",
@@ -480,34 +465,27 @@ def install_pre_push_hook(repo: Path = ROOT) -> None:
 
 
 def protected_state(cwd: Path) -> tuple[str, ...]:
-    """Fotografia das refs locais main/develop e do checkout principal.
+    """Fotografia das refs locais main/develop e da branch atual do checkout.
 
     O remoto é protegido pelo pre-push hook; aqui não se olha origin/* porque o orquestrador
-    pode fazer merge de outros PRs enquanto loops paralelos rodam.
+    pode fazer merge de PRs enquanto um loop roda.
     """
     refs = ["main", BASE_BRANCH]
     shas = tuple(git(cwd, "rev-parse", "--verify", "-q", ref, check=False) for ref in refs)
-    if cwd != ROOT:
-        main_head = git(ROOT, "rev-parse", "HEAD")
-        main_dirty = git(ROOT, "status", "--porcelain")
-        return (*shas, main_head, main_dirty)
-    return shas
+    return (*shas, git(cwd, "branch", "--show-current"))
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Agent loop de uma task spec-driven")
     parser.add_argument("task", help="ID da task, ex.: T01")
     parser.add_argument("--max-sessions", type=int, default=8)
-    parser.add_argument(
-        "--clone", action="store_true", help="rodar num clone isolado (para loops paralelos)"
-    )
     parser.add_argument("--force", action="store_true", help="ignorar dependências pendentes")
     args = parser.parse_args(argv)
 
     task = load_spec(args.task)
     number = issue_number(task.id)
     install_pre_push_hook()
-    cwd = prepare_workspace(task, args.clone)
+    cwd = prepare_workspace(task)
     log(f"{task.id} em {cwd} (branch {task.branch}, issue #{number})")
 
     missing = [d for d in task.depends_on if d not in done_tasks_on_base(cwd)]

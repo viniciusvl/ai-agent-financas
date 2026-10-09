@@ -7,7 +7,7 @@
 
 1. escreve/ajusta specs (`specs/`) e testes de aceite (`tests/acceptance/`);
 2. cria issues `[Txx]` (corpo = spec) e mantém `specs/issues.json`;
-3. dispara os loops: `python -m tools.agent_loop.runner Txx [--clone]`;
+3. dispara os loops: `python -m tools.agent_loop.runner Txx` (uma task por vez — sem paralelismo, ver `docs/workflow.md`);
 4. revisa cada PR (checklist em `docs/workflow.md`); se houver falha, comenta na issue com
    `## 🔍 Revisão — mudanças solicitadas`, adiciona a label `changes-requested` e roda o
    runner de novo; se aprovado, faz merge em `develop` e fecha a issue com um resumo;

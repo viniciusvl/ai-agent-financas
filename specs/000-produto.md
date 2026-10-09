@@ -55,4 +55,4 @@ Registrado em, Texto original.
 | `app/main.py` | FastAPI + webhook + wiring | T08 |
 | Docker/Nginx/docs | deploy na EC2 | T09 |
 
-Ordem/dependências: T01 → (T02, T03, T04, T05, T06 em paralelo) → T07 → T08 → T09.
+Ordem/dependências: T01 → (T02, T03, T04, T05, T06 — independentes entre si, executadas em sequência) → T07 → T08 → T09.
