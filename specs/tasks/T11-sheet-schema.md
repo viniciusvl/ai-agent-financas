@@ -10,7 +10,7 @@ allowed_paths:
 ## Contexto
 
 Arquitetura v2 (#23). O formato padrão da planilha vive em `config/planilha.yaml`
-(o orquestrador mantém o exemplo/padrão em `config/planilha.example.yaml`). O mesmo schema
+(formato padrão mantido pelo orquestrador/dono do projeto — não altere). O mesmo schema
 alimenta o contexto dos prompts (o agente recebe o formato, não o descobre) e o escritor.
 Use `yaml.safe_load` (pyyaml já está em `requirements.txt`).
 
