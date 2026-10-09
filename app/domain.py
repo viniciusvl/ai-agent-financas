@@ -3,6 +3,7 @@
 Spec: specs/tasks/T01-domain-model.md
 """
 
+import unicodedata
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from enum import StrEnum
@@ -91,6 +92,67 @@ def _normalize_description(value: object) -> str:
     return text
 
 
+def _strip_accents(text: str) -> str:
+    """Remove acentos (marcas diacríticas) de um texto."""
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+
+
+def _normalize_key(value: object) -> str:
+    """Chave de comparação: minúsculas, sem acentos e sem espaços."""
+    text = _strip_accents(str(value).strip().lower())
+    return "".join(text.split())
+
+
+_CURRENCY_ALIASES: dict[str, Currency] = {
+    "cny": Currency.CNY,
+    "rmb": Currency.CNY,
+    "yuan": Currency.CNY,
+    "yuans": Currency.CNY,
+    "kuai": Currency.CNY,
+    "¥": Currency.CNY,
+    "元": Currency.CNY,
+    "brl": Currency.BRL,
+    "r$": Currency.BRL,
+    "real": Currency.BRL,
+    "reais": Currency.BRL,
+    "usd": Currency.USD,
+    "us$": Currency.USD,
+    "$": Currency.USD,
+    "dolar": Currency.USD,
+    "dolares": Currency.USD,
+}
+
+_CATEGORY_BY_KEY: dict[str, Category] = {_normalize_key(c.value): c for c in Category}
+_PAYMENT_METHOD_BY_KEY: dict[str, PaymentMethod] = {
+    _normalize_key(p.value): p for p in PaymentMethod
+}
+
+
+def _normalize_currency(value: object) -> Currency:
+    """Normaliza a moeda por aliases; `None` vira CNY e desconhecida é inválida."""
+    if value is None:
+        return Currency.CNY
+    try:
+        return _CURRENCY_ALIASES[_normalize_key(value)]
+    except KeyError as exc:
+        raise ValueError(f"moeda inválida: {value!r}") from exc
+
+
+def _normalize_category(value: object) -> Category:
+    """Normaliza a categoria; desconhecida ou `None` vira `outros`."""
+    if value is None:
+        return Category.OUTROS
+    return _CATEGORY_BY_KEY.get(_normalize_key(value), Category.OUTROS)
+
+
+def _normalize_payment_method(value: object) -> PaymentMethod:
+    """Normaliza o pagamento; desconhecido ou `None` vira `outro`."""
+    if value is None:
+        return PaymentMethod.OUTRO
+    return _PAYMENT_METHOD_BY_KEY.get(_normalize_key(value), PaymentMethod.OUTRO)
+
+
 class Expense(BaseModel):
     """Um gasto. As regras de validação/normalização estão na spec T01."""
 
@@ -111,6 +173,21 @@ class Expense(BaseModel):
     @classmethod
     def _validate_description(cls, value: object) -> str:
         return _normalize_description(value)
+
+    @field_validator("currency", mode="before")
+    @classmethod
+    def _validate_currency(cls, value: object) -> Currency:
+        return _normalize_currency(value)
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def _validate_category(cls, value: object) -> Category:
+        return _normalize_category(value)
+
+    @field_validator("payment_method", mode="before")
+    @classmethod
+    def _validate_payment_method(cls, value: object) -> PaymentMethod:
+        return _normalize_payment_method(value)
 
 
 def format_confirmation(expense: Expense) -> str:
