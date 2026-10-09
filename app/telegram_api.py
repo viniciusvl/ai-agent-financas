@@ -3,12 +3,9 @@
 Spec: specs/tasks/T02-telegram-client.md
 """
 
-import logging
 from typing import Any
 
 import httpx
-
-logger = logging.getLogger(__name__)
 
 TELEGRAM_BASE_URL = "https://api.telegram.org"
 
@@ -19,14 +16,7 @@ class TelegramError(Exception):
 
 def confirmation_keyboard(pending_id: str) -> dict[str, Any]:
     """Teclado inline com os botões Confirmar/Cancelar. Ver spec T02."""
-    return {
-        "inline_keyboard": [
-            [
-                {"text": "✅ Confirmar", "callback_data": f"confirm:{pending_id}"},
-                {"text": "❌ Cancelar", "callback_data": f"cancel:{pending_id}"},
-            ]
-        ]
-    }
+    raise NotImplementedError("T02")
 
 
 class TelegramClient:
@@ -38,45 +28,16 @@ class TelegramClient:
     ) -> None:
         self.token = token
         self.base_url = base_url.rstrip("/")
-        self._owns_http = http is None
-        self._http = http if http is not None else httpx.AsyncClient(timeout=30)
+        self._http = http
+        # TODO(T02): criar AsyncClient próprio quando `http` for None.
 
     async def aclose(self) -> None:
-        """Fecha o client HTTP apenas se ele foi criado internamente."""
-        if self._owns_http:
-            await self._http.aclose()
-
-    async def _call(self, method: str, payload: dict[str, Any]) -> Any:
-        """Executa um método da Bot API e devolve o campo `result`."""
-        url = f"{self.base_url}/bot{self.token}/{method}"
-        try:
-            response = await self._http.post(url, json=payload)
-        except httpx.HTTPError as exc:
-            raise TelegramError(f"Falha de rede ao chamar {method}: {exc}") from exc
-
-        try:
-            data = response.json()
-        except ValueError as exc:
-            raise TelegramError(
-                f"Resposta inválida (não-JSON) em {method}: HTTP {response.status_code}"
-            ) from exc
-
-        if not isinstance(data, dict) or not data.get("ok"):
-            description = data.get("description") if isinstance(data, dict) else None
-            raise TelegramError(
-                description or f"Erro na Bot API em {method}: HTTP {response.status_code}"
-            )
-
-        return data.get("result")
+        raise NotImplementedError("T02")
 
     async def send_message(
         self, chat_id: int, text: str, reply_markup: dict[str, Any] | None = None
     ) -> dict[str, Any]:
-        """Envia uma mensagem HTML; `reply_markup` só entra se informado."""
-        payload: dict[str, Any] = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
-        if reply_markup is not None:
-            payload["reply_markup"] = reply_markup
-        return await self._call("sendMessage", payload)
+        raise NotImplementedError("T02")
 
     async def edit_message_text(
         self,
@@ -85,50 +46,13 @@ class TelegramClient:
         text: str,
         reply_markup: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Edita o texto de uma mensagem; `reply_markup` só entra se informado."""
-        payload: dict[str, Any] = {
-            "chat_id": chat_id,
-            "message_id": message_id,
-            "text": text,
-            "parse_mode": "HTML",
-        }
-        if reply_markup is not None:
-            payload["reply_markup"] = reply_markup
-        return await self._call("editMessageText", payload)
+        raise NotImplementedError("T02")
 
     async def answer_callback_query(self, callback_query_id: str, text: str | None = None) -> bool:
-        """Responde a um callback query; devolve True em caso de sucesso."""
-        payload: dict[str, Any] = {"callback_query_id": callback_query_id}
-        if text is not None:
-            payload["text"] = text
-        await self._call("answerCallbackQuery", payload)
-        return True
+        raise NotImplementedError("T02")
 
     async def download_file(self, file_id: str) -> bytes:
-        """Baixa o conteúdo de um arquivo pelo file_id; falhas viram TelegramError."""
-        result = await self._call("getFile", {"file_id": file_id})
-        file_path = result.get("file_path") if isinstance(result, dict) else None
-        if not file_path:
-            raise TelegramError(f"getFile não retornou file_path para o arquivo {file_id}")
-
-        url = f"{self.base_url}/file/bot{self.token}/{file_path}"
-        try:
-            response = await self._http.get(url)
-        except httpx.HTTPError as exc:
-            raise TelegramError(f"Falha de rede ao baixar arquivo: {exc}") from exc
-
-        if not response.is_success:
-            raise TelegramError(f"Falha ao baixar arquivo: HTTP {response.status_code}")
-
-        return response.content
+        raise NotImplementedError("T02")
 
     async def set_webhook(self, url: str, secret_token: str) -> bool:
-        """Registra o webhook para mensagens e callbacks; devolve True em caso de sucesso."""
-        payload: dict[str, Any] = {
-            "url": url,
-            "secret_token": secret_token,
-            "allowed_updates": ["message", "callback_query"],
-            "drop_pending_updates": False,
-        }
-        await self._call("setWebhook", payload)
-        return True
+        raise NotImplementedError("T02")
