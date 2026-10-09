@@ -74,3 +74,37 @@ def test_review_addressed_requires_fix_commit(tmp_path):
     (tmp_path / "a").write_text("3")
     git("commit", "-q", "-am", "fix(T08): corrige revisão")
     assert review_addressed(spec, tmp_path, base) is True
+
+
+def test_watchdog_kills_idle_process(tmp_path):
+    import os
+    import sys
+    import time
+
+    from tools.agent_loop.runner import run_with_watchdog
+
+    script = "import sys, time; print('evento', flush=True); time.sleep(30)"
+    start = time.monotonic()
+    out, code = run_with_watchdog(
+        [sys.executable, "-c", script], tmp_path, dict(os.environ), total_timeout=60, idle_timeout=2
+    )
+    assert code == -1
+    assert "evento" in out
+    assert time.monotonic() - start < 15
+
+
+def test_watchdog_returns_output_and_code(tmp_path):
+    import os
+    import sys
+
+    from tools.agent_loop.runner import run_with_watchdog
+
+    out, code = run_with_watchdog(
+        [sys.executable, "-c", "print('a'); print('b')"],
+        tmp_path,
+        dict(os.environ),
+        total_timeout=60,
+        idle_timeout=30,
+    )
+    assert code == 0
+    assert out.splitlines() == ["a", "b"]
