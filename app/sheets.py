@@ -3,6 +3,7 @@
 Spec: specs/tasks/T06-google-sheets.md
 """
 
+import threading
 from datetime import datetime
 from typing import Any
 
@@ -121,6 +122,9 @@ class PagamentoSheetWriter:
         # Ids já vistos nesta instância (carregados da planilha + gravados aqui).
         self._ids_loaded = False
         self._known_ids: set[str] = set()
+        # Serializa a seção crítica de `append_pagamento`: o bot pode chamar via
+        # `asyncio.to_thread` e dois callbacks (ex.: duplo clique) correm em paralelo.
+        self._lock = threading.Lock()
 
     @classmethod
     def from_service_account(
@@ -195,30 +199,34 @@ class PagamentoSheetWriter:
         Idempotente por `id_gasto`: ids já conhecidos (da planilha ou gravados
         nesta instância) não são reinseridos e a função retorna `False`.
         """
-        if not self._ids_loaded:
-            if not self._header_ready:
-                self.ensure_header()
-                self._header_ready = True
-            self._known_ids = self._load_existing_ids()
-            self._ids_loaded = True
+        # Toda a seção crítica fica sob o lock: carga inicial, verificação do id,
+        # `to_row`, `append_row` e registro do id. Sem isso, duas threads com o
+        # mesmo `id_gasto` passariam pela verificação e gravariam linhas duplicadas.
+        with self._lock:
+            if not self._ids_loaded:
+                if not self._header_ready:
+                    self.ensure_header()
+                    self._header_ready = True
+                self._known_ids = self._load_existing_ids()
+                self._ids_loaded = True
 
-        if id_gasto in self._known_ids:
-            return False
+            if id_gasto in self._known_ids:
+                return False
 
-        try:
-            linha = self.schema.to_row(
-                pagamento,
-                {"id": id_gasto, "usuario": usuario, "registrado_em": registrado_em},
-            )
-        except SchemaError as exc:
-            raise SheetsError(str(exc)) from exc
+            try:
+                linha = self.schema.to_row(
+                    pagamento,
+                    {"id": id_gasto, "usuario": usuario, "registrado_em": registrado_em},
+                )
+            except SchemaError as exc:
+                raise SheetsError(str(exc)) from exc
 
-        linha = _escape_formula_cells(linha)
-        try:
-            self.worksheet.append_row(linha, value_input_option="USER_ENTERED")
-        except SheetsError:
-            raise
-        except Exception as exc:
-            raise SheetsError("falha ao gravar o pagamento na planilha") from exc
-        self._known_ids.add(id_gasto)
-        return True
+            linha = _escape_formula_cells(linha)
+            try:
+                self.worksheet.append_row(linha, value_input_option="USER_ENTERED")
+            except SheetsError:
+                raise
+            except Exception as exc:
+                raise SheetsError("falha ao gravar o pagamento na planilha") from exc
+            self._known_ids.add(id_gasto)
+            return True
