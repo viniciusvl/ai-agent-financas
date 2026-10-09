@@ -122,6 +122,7 @@ def run(
         args,
         cwd=cwd,
         env=env,
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -429,6 +430,9 @@ def run_with_watchdog(
         cmd,
         cwd=cwd,
         env=env,
+        # `opencode run` lê a mensagem também do stdin: herdado e aberto, ele espera um EOF
+        # que nunca chega e a sessão trava sem emitir nenhum evento.
+        stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
         text=True,
