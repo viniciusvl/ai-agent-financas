@@ -414,6 +414,9 @@ def run_session(task: TaskSpec, cwd: Path, session: int, prompt: str) -> str:
     cmd = [
         opencode_bin(),
         "run",
+        # Servidor privado no diretório da task: o serviço compartilhado do opencode executa
+        # as ferramentas no diretório em que foi iniciado (quebra o isolamento dos worktrees).
+        "--standalone",
         "--agent",
         "executor",
         "--auto",
@@ -448,6 +451,40 @@ def run_session(task: TaskSpec, cwd: Path, session: int, prompt: str) -> str:
 # --------------------------------------------------------------------------- main
 
 
+PRE_PUSH_HOOK = """#!/bin/sh
+# Instalado pelo runner do agent loop: main/develop só mudam via PR.
+while read local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main|refs/heads/develop)
+      echo "pre-push: push direto para ${remote_ref#refs/heads/} bloqueado (use PR)" >&2
+      exit 1;;
+  esac
+done
+exit 0
+"""
+
+
+def install_pre_push_hook() -> None:
+    hooks = Path(git(ROOT, "rev-parse", "--path-format=absolute", "--git-common-dir")) / "hooks"
+    hooks.mkdir(exist_ok=True)
+    (hooks / "pre-push").write_text(PRE_PUSH_HOOK, encoding="utf-8", newline="\n")
+
+
+def protected_state(cwd: Path) -> tuple[str, ...]:
+    """Fotografia das refs locais main/develop e do checkout principal.
+
+    O remoto é protegido pelo pre-push hook; aqui não se olha origin/* porque o orquestrador
+    pode fazer merge de outros PRs enquanto loops paralelos rodam.
+    """
+    refs = ["main", BASE_BRANCH]
+    shas = tuple(git(cwd, "rev-parse", "--verify", "-q", ref, check=False) for ref in refs)
+    if cwd != ROOT:
+        main_head = git(ROOT, "rev-parse", "HEAD")
+        main_dirty = git(ROOT, "status", "--porcelain")
+        return (*shas, main_head, main_dirty)
+    return shas
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Agent loop de uma task spec-driven")
     parser.add_argument("task", help="ID da task, ex.: T01")
@@ -458,6 +495,7 @@ def main(argv: list[str] | None = None) -> int:
 
     task = load_spec(args.task)
     number = issue_number(task.id)
+    install_pre_push_hook()
     cwd = prepare_workspace(task, args.worktree)
     log(f"{task.id} em {cwd} (branch {task.branch}, issue #{number})")
 
@@ -473,9 +511,20 @@ def main(argv: list[str] | None = None) -> int:
     for session in range(1, args.max_sessions + 1):
         log(f"iniciando sessão {session}/{args.max_sessions}")
         head_before = git(cwd, "rev-parse", "HEAD")
+        guard_before = protected_state(cwd)
         final = run_session(
             task, cwd, session, build_prompt(task, number, session, last_report, review)
         )
+        if protected_state(cwd) != guard_before:
+            set_labels(cwd, number, add=["blocked"], remove=["in-progress"])
+            comment(
+                cwd,
+                number,
+                f"⛔ Sessão {session} alterou `{BASE_BRANCH}`/`main` ou o checkout principal. "
+                "Loop interrompido; o orquestrador precisa investigar.",
+            )
+            log("ALERTA: branches protegidas ou checkout principal alterados — abortando")
+            return 4
 
         reverted = enforce_scope(task, cwd)
         if reverted:
