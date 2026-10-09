@@ -7,6 +7,8 @@ Uso:
 Spec: specs/tasks/T17-evals.md
 """
 
+import argparse
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -19,6 +21,23 @@ CAMPOS_AVALIADOS = ("valor_compra", "moeda", "metodo_pagamento", "quant_parcelas
 LIMIAR_ROTA = 0.95
 LIMIAR_CAMPOS = 0.90
 ROTAS = ("escrita", "leitura", "outro")
+
+# Cobertura mínima exigida de `evals/casos.yaml` (spec T17).
+MIN_POR_ROTA = {"escrita": 30, "leitura": 15, "outro": 10}
+METODOS_PAGAMENTO = (
+    "dinheiro",
+    "debito",
+    "credito_a_vista",
+    "credito_parcelado",
+    "pix",
+    "alipay",
+    "wechat_pay",
+    "outro",
+)
+MIN_POR_METODO = 2
+MIN_POR_MOEDA = {"CNY": 10, "BRL": 5, "USD": 3}
+MIN_PARCELADOS = 6
+MIN_PARCELAS_DISTINTAS = 4
 
 
 class CasosError(Exception):
@@ -101,7 +120,50 @@ def load_casos(path: Path = CASOS_PATH) -> list[Caso]:
 
 
 def verificar_cobertura(casos: list[Caso]) -> None:
-    raise NotImplementedError("T17")
+    """Garante a cobertura mínima do conjunto de casos (spec T17).
+
+    Levanta `CasosError` descrevendo tudo o que falta; não altera o conjunto.
+    """
+    problemas: list[str] = []
+
+    por_rota = Counter(c.rota for c in casos)
+    for rota, minimo in MIN_POR_ROTA.items():
+        if por_rota[rota] < minimo:
+            problemas.append(f"rota '{rota}': {por_rota[rota]}/{minimo}")
+
+    escritas = [c for c in casos if c.rota == "escrita"]
+    sem_valor = [c.id for c in escritas if "valor_compra" not in c.esperado]
+    if sem_valor:
+        problemas.append(f"casos escrita sem 'valor_compra' esperado: {', '.join(sem_valor)}")
+
+    por_metodo = Counter(c.esperado.get("metodo_pagamento") for c in escritas)
+    for metodo in METODOS_PAGAMENTO:
+        if por_metodo[metodo] < MIN_POR_METODO:
+            problemas.append(f"metodo_pagamento '{metodo}': {por_metodo[metodo]}/{MIN_POR_METODO}")
+
+    por_moeda = Counter(c.esperado.get("moeda") for c in casos)
+    for moeda, minimo in MIN_POR_MOEDA.items():
+        if por_moeda[moeda] < minimo:
+            problemas.append(f"moeda '{moeda}': {por_moeda[moeda]}/{minimo}")
+
+    parcelas = [
+        c.esperado["quant_parcelas"]
+        for c in casos
+        if c.esperado.get("metodo_pagamento") == "credito_parcelado"
+        and "quant_parcelas" in c.esperado
+    ]
+    if len(parcelas) < MIN_PARCELADOS:
+        problemas.append(
+            f"credito_parcelado com quant_parcelas: {len(parcelas)}/{MIN_PARCELADOS}",
+        )
+    distintas = len(set(parcelas))
+    if distintas < MIN_PARCELAS_DISTINTAS:
+        problemas.append(
+            f"valores distintos de quant_parcelas: {distintas}/{MIN_PARCELAS_DISTINTAS}"
+        )
+
+    if problemas:
+        raise CasosError("cobertura insuficiente: " + "; ".join(problemas))
 
 
 async def avaliar(
@@ -115,7 +177,26 @@ def render_relatorio(rel: Relatorio, quando: datetime) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    raise NotImplementedError("T17")
+    """CLI do avaliador. `--check` valida o arquivo sem rede; sem argumentos = `--check`."""
+    parser = argparse.ArgumentParser(prog="python -m tools.run_evals", description=__doc__)
+    grupo = parser.add_mutually_exclusive_group()
+    grupo.add_argument("--check", action="store_true", help="valida os casos (sem rede)")
+    grupo.add_argument(
+        "--live", action="store_true", help="executa as APIs reais e grava evals/resultados/"
+    )
+    args = parser.parse_args(argv)
+
+    if args.live:
+        raise NotImplementedError("T17: --live será implementado na subtarefa 3")
+
+    try:
+        casos = load_casos(CASOS_PATH)
+        verificar_cobertura(casos)
+    except CasosError as exc:
+        print(f"ERRO: {exc}")
+        return 1
+    print(f"OK: {len(casos)} casos")
+    return 0
 
 
 if __name__ == "__main__":

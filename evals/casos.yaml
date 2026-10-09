@@ -208,3 +208,215 @@ casos:
   - id: e030
     texto: "me ajuda com os comandos do bot"
     rota: outro
+
+  - id: e031
+    texto: "almoço no shopping 88 reais no crédito"
+    rota: escrita
+    esperado:
+      valor_compra: 88
+      moeda: BRL
+      metodo_pagamento: credito_a_vista
+      categoria: alimentação
+
+  - id: e032
+    texto: "paguei 25 reais do lanche no pix"
+    rota: escrita
+    esperado:
+      valor_compra: 25
+      moeda: BRL
+      metodo_pagamento: pix
+      categoria: alimentação
+
+  - id: e033
+    texto: "show 30 dólares paguei com o cartão da empresa"
+    rota: escrita
+    esperado:
+      valor_compra: 30
+      moeda: USD
+      metodo_pagamento: outro
+      categoria: passeios
+
+  - id: e034
+    texto: "entrada no parque 90 kuai paguei com o cartão da empresa"
+    rota: escrita
+    esperado:
+      valor_compra: 90
+      moeda: CNY
+      metodo_pagamento: outro
+      categoria: passeios
+
+  - id: e035
+    texto: "comprei um cachecol por 150 reais em 3 vezes"
+    rota: escrita
+    esperado:
+      valor_compra: 150
+      moeda: BRL
+      metodo_pagamento: credito_parcelado
+      quant_parcelas: 3
+      categoria: compras
+
+  - id: e036
+    texto: "fone de ouvido 200 dólares parcelado em 5x"
+    rota: escrita
+    esperado:
+      valor_compra: 200
+      moeda: USD
+      metodo_pagamento: credito_parcelado
+      quant_parcelas: 5
+      categoria: compras
+
+  - id: e037
+    texto: "mala nova 800 yuan em 8 vezes"
+    rota: escrita
+    esperado:
+      valor_compra: 800
+      moeda: CNY
+      metodo_pagamento: credito_parcelado
+      quant_parcelas: 8
+      categoria: compras
+
+  - id: e038
+    texto: "paguei 18 kuai do bubble tea em dinheiro"
+    rota: escrita
+    esperado:
+      valor_compra: 18
+      moeda: CNY
+      metodo_pagamento: dinheiro
+      categoria: alimentação
+
+  - id: e039
+    texto: "jantar 55 dólares no débito"
+    rota: escrita
+    esperado:
+      valor_compra: 55
+      moeda: USD
+      metodo_pagamento: debito
+      categoria: alimentação
+
+  - id: e040
+    texto: "táxi 42 yuan no alipay"
+    rota: escrita
+    esperado:
+      valor_compra: 42
+      moeda: CNY
+      metodo_pagamento: alipay
+      categoria: transporte
+
+  - id: e041
+    texto: "mercado 130 yuan com wechat"
+    rota: escrita
+    esperado:
+      valor_compra: 130
+      moeda: CNY
+      metodo_pagamento: wechat_pay
+      categoria: alimentação
+
+  - id: e042
+    texto: "presente 320 kuai no crédito"
+    rota: escrita
+    esperado:
+      valor_compra: 320
+      moeda: CNY
+      metodo_pagamento: credito_a_vista
+      categoria: compras
+
+  - id: e043
+    texto: "paguei 12 yuan de metrô no pix"
+    rota: escrita
+    esperado:
+      valor_compra: 12
+      moeda: CNY
+      metodo_pagamento: pix
+      categoria: transporte
+
+  - id: e044
+    texto: "notebook 6000 yuan em 24x no crédito"
+    rota: escrita
+    esperado:
+      valor_compra: 6000
+      moeda: CNY
+      metodo_pagamento: credito_parcelado
+      quant_parcelas: 24
+      categoria: compras
+
+  - id: e045
+    texto: "massagem 200 reais paguei com o cartão do meu amigo"
+    rota: escrita
+    esperado:
+      valor_compra: 200
+      moeda: BRL
+      metodo_pagamento: outro
+      categoria: outros
+
+  - id: e046
+    texto: "roupas 75 dólares no crédito"
+    rota: escrita
+    esperado:
+      valor_compra: 75
+      moeda: USD
+      metodo_pagamento: credito_a_vista
+      categoria: compras
+
+  - id: e047
+    texto: "quanto eu gastei com táxi nessa viagem"
+    rota: leitura
+
+  - id: e048
+    texto: "me diz o total que já gastamos"
+    rota: leitura
+
+  - id: e049
+    texto: "quais foram meus gastos com comida"
+    rota: leitura
+
+  - id: e050
+    texto: "quanto foi a hospedagem no total"
+    rota: leitura
+
+  - id: e051
+    texto: "mostra os pagamentos no wechat"
+    rota: leitura
+
+  - id: e052
+    texto: "me fala quanto gastei hoje em yuan"
+    rota: leitura
+
+  - id: e053
+    texto: "qual o gasto mais barato que eu registrei"
+    rota: leitura
+
+  - id: e054
+    texto: "resumo dos gastos por categoria dessa semana"
+    rota: leitura
+
+  - id: e055
+    texto: "bom dia, tudo certo?"
+    rota: outro
+
+  - id: e056
+    texto: "valeu pela ajuda!"
+    rota: outro
+
+  - id: e057
+    texto: "que horas são aí?"
+    rota: outro
+
+  - id: e058
+    texto: "você consegue traduzir uma frase pra mim?"
+    rota: outro
+
+  - id: e059
+    texto: "boa noite"
+    rota: outro
+
+  - id: e060
+    texto: "qual a melhor época pra visitar Xangai?"
+    rota: outro
+
+  - id: e061
+    texto: "manda uma piada"
+    rota: outro
+
+  - id: e062
+    texto: "obrigado, tchau!"
+    rota: outro
