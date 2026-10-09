@@ -110,3 +110,69 @@ async def test_client_creates_and_closes_own_http():
 def test_base_url_trailing_slash_stripped():
     client = TelegramClient("t", http=FakeHTTP({}), base_url="https://x.test/")
     assert client.base_url == "https://x.test"
+
+
+async def test_send_message_includes_markup_when_given():
+    http = FakeHTTP({"ok": True, "result": {"message_id": 7}})
+    client = TelegramClient("123:ABC", http=http)
+
+    result = await client.send_message(42, "oi", reply_markup={"inline_keyboard": []})
+
+    assert result == {"message_id": 7}
+    _, payload = http.calls[0]
+    assert payload == {
+        "chat_id": 42,
+        "text": "oi",
+        "parse_mode": "HTML",
+        "reply_markup": {"inline_keyboard": []},
+    }
+
+
+async def test_send_message_omits_markup_when_absent():
+    http = FakeHTTP({"ok": True, "result": {"message_id": 8}})
+    client = TelegramClient("123:ABC", http=http)
+
+    await client.send_message(42, "oi")
+
+    _, payload = http.calls[0]
+    assert payload == {"chat_id": 42, "text": "oi", "parse_mode": "HTML"}
+
+
+async def test_edit_message_text_payload_and_markup():
+    http = FakeHTTP({"ok": True, "result": {"message_id": 20}})
+    client = TelegramClient("123:ABC", http=http)
+
+    await client.edit_message_text(42, 20, "novo")
+    assert http.calls[0][1] == {
+        "chat_id": 42,
+        "message_id": 20,
+        "text": "novo",
+        "parse_mode": "HTML",
+    }
+
+    await client.edit_message_text(42, 20, "novo", reply_markup={"inline_keyboard": []})
+    assert http.calls[1][1]["reply_markup"] == {"inline_keyboard": []}
+
+
+async def test_answer_callback_query_returns_true_and_optional_text():
+    http = FakeHTTP({"ok": True, "result": True})
+    client = TelegramClient("123:ABC", http=http)
+
+    assert await client.answer_callback_query("cb1") is True
+    assert http.calls[0][1] == {"callback_query_id": "cb1"}
+
+    await client.answer_callback_query("cb1", text="Registrado!")
+    assert http.calls[1][1] == {"callback_query_id": "cb1", "text": "Registrado!"}
+
+
+async def test_set_webhook_payload_and_true():
+    http = FakeHTTP({"ok": True, "result": True})
+    client = TelegramClient("123:ABC", http=http)
+
+    assert await client.set_webhook("https://bot.example.com/hook", "s3cr3t") is True
+    assert http.calls[0][1] == {
+        "url": "https://bot.example.com/hook",
+        "secret_token": "s3cr3t",
+        "allowed_updates": ["message", "callback_query"],
+        "drop_pending_updates": False,
+    }

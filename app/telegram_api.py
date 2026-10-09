@@ -70,7 +70,11 @@ class TelegramClient:
     async def send_message(
         self, chat_id: int, text: str, reply_markup: dict[str, Any] | None = None
     ) -> dict[str, Any]:
-        raise NotImplementedError("T02")
+        """Envia uma mensagem HTML; inclui ``reply_markup`` só se informado."""
+        payload: dict[str, Any] = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+        if reply_markup is not None:
+            payload["reply_markup"] = reply_markup
+        return await self._call("sendMessage", payload)
 
     async def edit_message_text(
         self,
@@ -79,13 +83,35 @@ class TelegramClient:
         text: str,
         reply_markup: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        raise NotImplementedError("T02")
+        """Edita o texto de uma mensagem já enviada."""
+        payload: dict[str, Any] = {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": text,
+            "parse_mode": "HTML",
+        }
+        if reply_markup is not None:
+            payload["reply_markup"] = reply_markup
+        return await self._call("editMessageText", payload)
 
     async def answer_callback_query(self, callback_query_id: str, text: str | None = None) -> bool:
-        raise NotImplementedError("T02")
+        """Confirma um callback; inclui ``text`` (toast) só se informado."""
+        payload: dict[str, Any] = {"callback_query_id": callback_query_id}
+        if text is not None:
+            payload["text"] = text
+        await self._call("answerCallbackQuery", payload)
+        return True
 
     async def download_file(self, file_id: str) -> bytes:
         raise NotImplementedError("T02")
 
     async def set_webhook(self, url: str, secret_token: str) -> bool:
-        raise NotImplementedError("T02")
+        """Registra o webhook para atualizações de mensagem e callback."""
+        payload = {
+            "url": url,
+            "secret_token": secret_token,
+            "allowed_updates": ["message", "callback_query"],
+            "drop_pending_updates": False,
+        }
+        await self._call("setWebhook", payload)
+        return True
