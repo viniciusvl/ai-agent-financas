@@ -47,3 +47,30 @@ def test_build_prompt_includes_review_and_report():
     assert "PRIORIDADE MÁXIMA" in prompt and "corrigir" in prompt
     assert "RELATORIO" in prompt
     assert Path(spec.acceptance).as_posix() in prompt
+
+
+def test_review_addressed_requires_fix_commit(tmp_path):
+    import subprocess
+
+    from tools.agent_loop.runner import review_addressed
+
+    def git(*args):
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+
+    git("init", "-q")
+    git("config", "user.email", "t@t")
+    git("config", "user.name", "t")
+    (tmp_path / "a").write_text("1")
+    git("add", "-A")
+    git("commit", "-q", "-m", "chore: base")
+    base = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True
+    ).stdout.strip()
+    spec = load_spec("T08")
+    assert review_addressed(spec, tmp_path, base) is False
+    (tmp_path / "a").write_text("2")
+    git("commit", "-q", "-am", "feat(T08): outra coisa")
+    assert review_addressed(spec, tmp_path, base) is False
+    (tmp_path / "a").write_text("3")
+    git("commit", "-q", "-am", "fix(T08): corrige revisão")
+    assert review_addressed(spec, tmp_path, base) is True

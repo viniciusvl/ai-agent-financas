@@ -33,7 +33,7 @@ ROOT = Path(__file__).resolve().parents[2]
 BASE_BRANCH = "develop"
 REVIEW_MARKER = "## 🔍 Revisão"
 SCOPE_ALWAYS_ALLOWED = ("tests/unit/",)
-SESSION_TIMEOUT_S = 40 * 60
+SESSION_TIMEOUT_S = 20 * 60  # sessões normais levam 1–4 min; acima disso, chamada travada
 TAIL_CHARS = 3500
 
 
@@ -307,6 +307,11 @@ def run_checks(task: TaskSpec, cwd: Path) -> CheckResult:
     return CheckResult(all_ok, "\n".join(lines), acceptance_summary)
 
 
+def review_addressed(task: TaskSpec, cwd: Path, desde: str) -> bool:
+    """True se há ao menos um commit `fix(<id>)` desde `desde` (revisão atendida)."""
+    return bool(git(cwd, "log", "--oneline", "--grep", f"fix({task.id})", f"{desde}..HEAD"))
+
+
 # --------------------------------------------------------------------------- github
 
 
@@ -506,6 +511,7 @@ def main(argv: list[str] | None = None) -> int:
     set_labels(cwd, number, add=["in-progress"], remove=["blocked", "needs-review"])
     review = pending_review(cwd, number)
     last_report = ""
+    head_inicio = git(cwd, "rev-parse", "HEAD")
 
     for session in range(1, args.max_sessions + 1):
         log(f"iniciando sessão {session}/{args.max_sessions}")
@@ -533,6 +539,16 @@ def main(argv: list[str] | None = None) -> int:
         commits = git(cwd, "log", "--oneline", f"{head_before}..HEAD")
 
         result = run_checks(task, cwd)
+        if result.passed and review and not review_addressed(task, cwd, head_inicio):
+            # Os testes de aceite não cobrem os itens da revisão: sem um commit fix(Txx)
+            # nesta execução, a revisão não foi atendida (ex.: sessão travada sem mudanças).
+            result = CheckResult(
+                False,
+                result.report
+                + f"\n### ❌ Revisão pendente\nNenhum commit `fix({task.id}): ...` nesta execução"
+                " — atenda aos itens da revisão do orquestrador.",
+                result.acceptance_summary,
+            )
         status = "✅ critérios de aceite atingidos" if result.passed else "❌ ainda não aceito"
         body = [
             f"## 🤖 Runner — {task.id} sessão {session}: {status}",
