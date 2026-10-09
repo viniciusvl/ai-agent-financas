@@ -5,7 +5,7 @@ quant_parcelas. Spec: specs/tasks/T10-payment-model.md
 """
 
 from datetime import date, time
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
@@ -26,10 +26,28 @@ class MetodoPagamento(StrEnum):
 
 MAX_PARCELAS = 24
 
+_CENTAVOS = Decimal("0.01")
+
 
 def calcular_parcelas(valor_compra: Decimal, quant_parcelas: int) -> list[Decimal]:
-    """Divide o valor em parcelas que somam exatamente o total. Ver spec T10."""
-    raise NotImplementedError("T10")
+    """Divide o valor em parcelas que somam exatamente o total. Ver spec T10.
+
+    A parcela base é `valor_compra / n` arredondada para baixo em centavos; a diferença
+    (para fechar o total exato) vai para a primeira parcela.
+    """
+    if isinstance(quant_parcelas, bool) or not isinstance(quant_parcelas, int):
+        raise ValueError(f"quantidade de parcelas inválida: {quant_parcelas!r}")
+    if not 1 <= quant_parcelas <= MAX_PARCELAS:
+        raise ValueError(f"quantidade de parcelas deve estar entre 1 e {MAX_PARCELAS}")
+
+    valor = valor_compra if isinstance(valor_compra, Decimal) else Decimal(str(valor_compra))
+    if valor <= 0:
+        raise ValueError("valor da compra deve ser maior que zero")
+
+    base = (valor / quant_parcelas).quantize(_CENTAVOS, rounding=ROUND_DOWN)
+    diferenca = valor - base * quant_parcelas
+    primeira = base + diferenca
+    return [primeira] + [base] * (quant_parcelas - 1)
 
 
 class Pagamento(BaseModel):
