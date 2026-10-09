@@ -106,3 +106,68 @@ async def test_not_expense_without_reason_uses_default():
     result = await extractor.extract(TEXT, today=TODAY)
     assert result.expense is None
     assert result.error == MSG_DEFAULT_NOT_EXPENSE
+
+
+def _expense_payload(**overrides) -> str:
+    data = {
+        "is_expense": True,
+        "amount": 35,
+        "currency": "CNY",
+        "category": "alimentação",
+        "description": "almoço",
+        "payment_method": "alipay",
+        "date": None,
+        "reason": None,
+    }
+    data.update(overrides)
+    return json.dumps(data, ensure_ascii=False)
+
+
+async def test_expense_is_built_from_payload():
+    from decimal import Decimal
+
+    from app.domain import Category, Currency, PaymentMethod
+
+    extractor, _ = _make(content=_expense_payload())
+    result = await extractor.extract(TEXT, today=TODAY)
+    assert result.error is None
+    expense = result.expense
+    assert expense.amount == Decimal("35.00")
+    assert expense.currency == Currency.CNY
+    assert expense.category == Category.ALIMENTACAO
+    assert expense.description == "almoço"
+    assert expense.payment_method == PaymentMethod.ALIPAY
+    assert expense.spent_at == TODAY
+    assert expense.raw_text == TEXT
+
+
+async def test_explicit_iso_date_is_used():
+    extractor, _ = _make(content=_expense_payload(date="2026-10-07"))
+    result = await extractor.extract(TEXT, today=TODAY)
+    assert result.expense.spent_at == date(2026, 10, 7)
+
+
+@pytest.mark.parametrize("value", ["ontem", "", "2026-13-40", 42, None])
+async def test_invalid_date_falls_back_to_today(value):
+    extractor, _ = _make(content=_expense_payload(date=value))
+    result = await extractor.extract(TEXT, today=TODAY)
+    assert result.expense.spent_at == TODAY
+
+
+async def test_missing_currency_falls_back_to_default():
+    from app.domain import Currency
+
+    extractor, _ = _make(content=_expense_payload(currency=None), default_currency="BRL")
+    result = await extractor.extract(TEXT, today=TODAY)
+    assert result.expense.currency == Currency.BRL
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [{"amount": None}, {"description": None}, {"description": ""}],
+)
+async def test_invalid_expense_fields_return_invalid_response(overrides):
+    extractor, _ = _make(content=_expense_payload(**overrides))
+    result = await extractor.extract(TEXT, today=TODAY)
+    assert result.expense is None
+    assert result.error == MSG_INVALID_RESPONSE

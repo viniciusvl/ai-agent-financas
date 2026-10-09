@@ -11,6 +11,7 @@ from datetime import date
 from typing import Any
 
 from openai import AsyncOpenAI
+from pydantic import ValidationError
 
 from app.domain import Expense
 from app.prompts import EXTRACTION_SYSTEM_PROMPT
@@ -115,5 +116,31 @@ class ExpenseExtractor:
             reason = data.get("reason") or MSG_DEFAULT_NOT_EXPENSE
             return ExtractionResult(error=reason)
 
-        # Subtarefa 3 (próxima sessão): montar o `Expense` a partir de `data`.
-        return ExtractionResult(error=MSG_INVALID_RESPONSE)
+        try:
+            expense = Expense(
+                amount=data.get("amount"),
+                currency=self._resolve_currency(data.get("currency")),
+                category=data.get("category"),
+                description=data.get("description"),
+                payment_method=data.get("payment_method"),
+                spent_at=self._resolve_date(data.get("date"), today),
+                raw_text=text,
+            )
+        except ValidationError:
+            return ExtractionResult(error=MSG_INVALID_RESPONSE)
+
+        return ExtractionResult(expense=expense)
+
+    def _resolve_currency(self, value: Any) -> Any:
+        """Usa a moeda retornada pelo LLM ou a padrão quando ausente."""
+        return self.default_currency if value is None else value
+
+    @staticmethod
+    def _resolve_date(value: Any, today: date) -> date:
+        """Interpreta a data ISO retornada pelo LLM; inválida cai em `today`."""
+        if isinstance(value, str):
+            try:
+                return date.fromisoformat(value.strip())
+            except ValueError:
+                return today
+        return today
