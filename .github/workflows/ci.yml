@@ -21,5 +21,5 @@ jobs:
         run: |
           python -m ruff check .
           python -m ruff format --check .
-      - name: Testes (aceite das tasks listadas em specs/tasks_done.txt)
+      - name: Testes (aceite das tasks com marcador em specs/done/)
         run: python -m pytest -q -rs

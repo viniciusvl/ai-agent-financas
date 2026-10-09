@@ -9,7 +9,7 @@ Cada volta do loop:
   2. o agente executa uma subtarefa, atualiza `.agent/state/Txx.md`, commita, faz push e comenta;
   3. o runner reverte alterações fora do escopo, commita sobras e faz push;
   4. o runner valida os critérios de aceite e comenta o resultado na issue;
-  5. se tudo passou: marca a task em specs/tasks_done.txt, abre o PR para develop e para.
+  5. se tudo passou: cria o marcador specs/done/Txx, abre o PR para develop e para.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 BASE_BRANCH = "develop"
 REVIEW_MARKER = "## 🔍 Revisão"
-SCOPE_ALWAYS_ALLOWED = ("tests/unit/", "specs/tasks_done.txt")
+SCOPE_ALWAYS_ALLOWED = ("tests/unit/",)
 SESSION_TIMEOUT_S = 40 * 60
 TAIL_CHARS = 3500
 
@@ -189,20 +189,34 @@ def prepare_workspace(task: TaskSpec, use_worktree: bool) -> Path:
 
     if remote_exists:
         git(cwd, "pull", "--ff-only", "origin", task.branch, check=False)
-    else:
-        git(cwd, "push", "-u", "origin", task.branch)
+    sync_with_base(task, cwd)
+    git(cwd, "push", "-u", "origin", task.branch)
     return cwd
 
 
+def sync_with_base(task: TaskSpec, cwd: Path) -> None:
+    """Traz a develop atual para a branch da task (correções de infra, tasks já mergeadas)."""
+    merged = run(["git", "merge", "--no-edit", f"origin/{BASE_BRANCH}"], cwd, check=False)
+    if merged.returncode != 0:
+        git(cwd, "merge", "--abort", check=False)
+        raise SystemExit(
+            f"conflito ao integrar {BASE_BRANCH} em {task.branch}; o orquestrador deve resolver"
+        )
+
+
 def done_tasks_on_base(cwd: Path) -> set[str]:
-    content = git(cwd, "show", f"origin/{BASE_BRANCH}:specs/tasks_done.txt", check=False)
-    return {
-        line.strip() for line in content.splitlines() if line.strip() and not line.startswith("#")
-    }
+    listing = git(
+        cwd, "ls-tree", "--name-only", f"origin/{BASE_BRANCH}", "specs/done/", check=False
+    )
+    return {Path(line).name for line in listing.splitlines() if Path(line).name.startswith("T")}
+
+
+def done_marker(task: TaskSpec) -> str:
+    return f"specs/done/{task.id}"
 
 
 def in_scope(task: TaskSpec, path: str) -> bool:
-    allowed = [*task.allowed_paths, *SCOPE_ALWAYS_ALLOWED, task.state_file]
+    allowed = [*task.allowed_paths, *SCOPE_ALWAYS_ALLOWED, task.state_file, done_marker(task)]
     for entry in allowed:
         if entry.endswith("/") and path.startswith(entry):
             return True
@@ -319,7 +333,7 @@ def set_labels(cwd: Path, number: int, add: list[str], remove: list[str]) -> Non
 def comment(cwd: Path, number: int, body: str) -> None:
     body_file = cwd / ".agent" / "logs" / "comment.md"
     body_file.parent.mkdir(parents=True, exist_ok=True)
-    body_file.write_text(body, encoding="utf-8")
+    body_file.write_text(body, encoding="utf-8", newline="\n")
     gh(cwd, "issue", "comment", str(number), "--body-file", str(body_file), check=False)
 
 
@@ -394,7 +408,7 @@ def run_session(task: TaskSpec, cwd: Path, session: int, prompt: str) -> str:
     log_dir = cwd / ".agent" / "logs" / task.id
     log_dir.mkdir(parents=True, exist_ok=True)
     prompt_file = log_dir / f"session-{session}-prompt.md"
-    prompt_file.write_text(prompt, encoding="utf-8")
+    prompt_file.write_text(prompt, encoding="utf-8", newline="\n")
     log_file = log_dir / f"session-{session}.jsonl"
     env = {**os.environ, "ACCEPTANCE_TASKS": task.id, "PYTHONIOENCODING": "utf-8"}
     cmd = [
@@ -487,10 +501,10 @@ def main(argv: list[str] | None = None) -> int:
         comment(cwd, number, "\n".join(body))
 
         if result.passed:
-            done_file = cwd / "specs" / "tasks_done.txt"
-            content = done_file.read_text(encoding="utf-8")
-            if task.id not in content.split():
-                done_file.write_text(content.rstrip("\n") + f"\n{task.id}\n", encoding="utf-8")
+            marker = cwd / done_marker(task)
+            if not marker.exists():
+                marker.parent.mkdir(parents=True, exist_ok=True)
+                marker.write_bytes(b"")
                 commit_leftovers(cwd, f"chore({task.id}): marca task como concluída")
                 git(cwd, "push", "origin", task.branch)
             pr_url = ensure_pr(task, number, cwd)
