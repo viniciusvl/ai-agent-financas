@@ -164,7 +164,7 @@ def opencode_bin() -> str:
 def task_env(task: TaskSpec) -> dict[str, str]:
     """Ambiente das sessões/validações: o Python do runner vem primeiro no PATH.
 
-    No Windows, o atalho da Microsoft Store (WindowsApps\python.exe) pode ficar à frente do
+    No Windows, o atalho da Microsoft Store (WindowsApps/python.exe) pode ficar à frente do
     interpretador real e quebrar `python -m pytest` dentro das sessões do agente.
     """
     path = os.pathsep.join([str(Path(sys.executable).parent), os.environ.get("PATH", "")])
