@@ -70,16 +70,24 @@ class PendingStore:
             ).fetchone()
         if row is None:
             return None
+        created_at = row[4]
+        if self.clock() - created_at > self.ttl_seconds:
+            return None
         return PendingExpense(
             id=row[0],
             chat_id=row[1],
             user_id=row[2],
             expense=Expense.model_validate_json(row[3]),
-            created_at=row[4],
+            created_at=created_at,
         )
 
     def delete(self, pending_id: str) -> bool:
-        raise NotImplementedError("T05")
+        with closing(sqlite3.connect(self.db_path)) as conn, conn:
+            cursor = conn.execute("DELETE FROM pending WHERE id = ?", (pending_id,))
+        return cursor.rowcount > 0
 
     def purge_expired(self) -> int:
-        raise NotImplementedError("T05")
+        threshold = self.clock() - self.ttl_seconds
+        with closing(sqlite3.connect(self.db_path)) as conn, conn:
+            cursor = conn.execute("DELETE FROM pending WHERE created_at < ?", (threshold,))
+        return cursor.rowcount
