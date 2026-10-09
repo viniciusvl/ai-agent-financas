@@ -3,7 +3,9 @@
 Spec: specs/tasks/T04-deepseek-extractor.md
 """
 
+import json
 import logging
+import re
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
@@ -17,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 MSG_INVALID_RESPONSE = "Não consegui interpretar essa mensagem como um gasto."
 MSG_DEFAULT_NOT_EXPENSE = "Essa mensagem não parece descrever um gasto."
+
+# Cerca de código markdown: ```json\n...\n``` (a linguagem é opcional).
+_CODE_FENCE_RE = re.compile(r"^```[A-Za-z0-9_-]*\s*\n?(.*?)\n?```$", re.DOTALL)
 
 
 class ExtractionError(Exception):
@@ -70,11 +75,45 @@ class ExpenseExtractor:
         except Exception as exc:
             raise ExtractionError("Falha ao consultar a API do DeepSeek") from exc
 
+    @staticmethod
+    def _strip_code_fence(content: str) -> str:
+        """Remove cercas de código markdown (```json … ```) ao redor do JSON."""
+        text = content.strip()
+        match = _CODE_FENCE_RE.match(text)
+        if match:
+            return match.group(1).strip()
+        return text
+
+    def _parse_content(self, content: Any) -> dict[str, Any] | None:
+        """Interpreta o conteúdo bruto do LLM como objeto JSON, ou `None` se inválido."""
+        if not isinstance(content, str):
+            return None
+        text = self._strip_code_fence(content)
+        if not text:
+            return None
+        try:
+            data = json.loads(text)
+        except (ValueError, TypeError):
+            return None
+        if not isinstance(data, dict):
+            return None
+        return data
+
     async def extract(self, text: str, today: date) -> ExtractionResult:
         if not text or not text.strip():
             return ExtractionResult(error=MSG_DEFAULT_NOT_EXPENSE)
 
         response = await self._call_api(self._build_messages(text, today))
-        # Subtarefa 2 (próxima sessão): parsing robusto do JSON retornado.
-        logger.debug("Resposta bruta do DeepSeek: %r", response.choices[0].message.content)
+        content = response.choices[0].message.content
+        logger.debug("Resposta bruta do DeepSeek: %r", content)
+
+        data = self._parse_content(content)
+        if data is None:
+            return ExtractionResult(error=MSG_INVALID_RESPONSE)
+
+        if not data.get("is_expense"):
+            reason = data.get("reason") or MSG_DEFAULT_NOT_EXPENSE
+            return ExtractionResult(error=reason)
+
+        # Subtarefa 3 (próxima sessão): montar o `Expense` a partir de `data`.
         return ExtractionResult(error=MSG_INVALID_RESPONSE)
