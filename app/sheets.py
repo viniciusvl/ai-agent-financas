@@ -118,6 +118,9 @@ class PagamentoSheetWriter:
         self.schema = schema
         # Memoriza o sucesso de `ensure_header` para ler o cabeçalho apenas uma vez.
         self._header_ready = False
+        # Ids já vistos nesta instância (carregados da planilha + gravados aqui).
+        self._ids_loaded = False
+        self._known_ids: set[str] = set()
 
     @classmethod
     def from_service_account(
@@ -152,13 +155,39 @@ class PagamentoSheetWriter:
         except SchemaError as exc:
             raise SheetsError(str(exc)) from exc
 
+    def _load_existing_ids(self) -> set[str]:
+        """Lê os ids já presentes na planilha, ignorando o cabeçalho."""
+        # Descobre a posição 1-based da coluna id (garantida no __init__).
+        posicao = 0
+        for i, coluna in enumerate(self.schema.colunas):
+            if coluna.campo == "id":
+                posicao = i + 1
+                break
+        try:
+            valores = self.worksheet.col_values(posicao)
+        except SheetsError:
+            raise
+        except Exception as exc:
+            raise SheetsError("falha ao ler os ids existentes na planilha") from exc
+        return {str(valor) for valor in valores[1:] if valor not in (None, "")}
+
     def append_pagamento(
         self, pagamento: Any, usuario: str, registrado_em: datetime, id_gasto: str
     ) -> bool:
-        """Anexa o pagamento na planilha, garantindo o cabeçalho antes."""
-        if not self._header_ready:
-            self.ensure_header()
-            self._header_ready = True
+        """Anexa o pagamento na planilha, garantindo o cabeçalho antes.
+
+        Idempotente por `id_gasto`: ids já conhecidos (da planilha ou gravados
+        nesta instância) não são reinseridos e a função retorna `False`.
+        """
+        if not self._ids_loaded:
+            if not self._header_ready:
+                self.ensure_header()
+                self._header_ready = True
+            self._known_ids = self._load_existing_ids()
+            self._ids_loaded = True
+
+        if id_gasto in self._known_ids:
+            return False
 
         try:
             linha = self.schema.to_row(
@@ -175,4 +204,5 @@ class PagamentoSheetWriter:
             raise
         except Exception as exc:
             raise SheetsError("falha ao gravar o pagamento na planilha") from exc
+        self._known_ids.add(id_gasto)
         return True
