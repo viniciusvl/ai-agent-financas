@@ -62,6 +62,31 @@ def test_quant_parcelas_none_vira_um():
     assert make(quant_parcelas=None).quant_parcelas == 1
 
 
+@pytest.mark.parametrize(
+    ("entrada", "esperado"),
+    [
+        ("10", 10),
+        (" 6 ", 6),
+        ("10x", 10),
+        ("10 x", 10),
+        (10.0, 10),
+        (Decimal("10.0"), 10),
+    ],
+)
+def test_quant_parcelas_aceita_texto_e_float_integrais(entrada, esperado):
+    p = make(metodo_pagamento="credito_parcelado", quant_parcelas=entrada)
+    assert p.quant_parcelas == esperado
+
+
+@pytest.mark.parametrize(
+    "entrada",
+    [3.5, Decimal("3.5"), "3.5", "abc", True],
+)
+def test_quant_parcelas_rejeita_nao_integrais(entrada):
+    with pytest.raises(ValidationError):
+        make(metodo_pagamento="credito_parcelado", quant_parcelas=entrada)
+
+
 def test_credito_a_vista_com_parcelas_vira_parcelado():
     p = make(metodo_pagamento="crédito", quant_parcelas=10, valor_compra="3000")
     assert p.metodo_pagamento is MetodoPagamento.CREDITO_PARCELADO

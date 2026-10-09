@@ -4,6 +4,7 @@ O LLM nunca calcula valores de parcela: a aplicação calcula a partir de valor_
 quant_parcelas. Spec: specs/tasks/T10-payment-model.md
 """
 
+import re
 from datetime import date, time
 from decimal import ROUND_DOWN, Decimal
 from enum import StrEnum
@@ -73,6 +74,42 @@ def normalizar_metodo(value: object) -> MetodoPagamento:
     return _METODO_POR_CHAVE.get(_chave_metodo(value), MetodoPagamento.OUTRO)
 
 
+# Primeiro número (inteiro ou decimal, com `.`/`,` como separador) presente numa string.
+_NUMERO_RE = re.compile(r"\d+(?:[.,]\d+)?")
+
+
+def _parse_quant_parcelas(value: object) -> int:
+    """Converte a quantidade de parcelas para `int`.
+
+    O LLM pode devolver o número como texto (`"10"`, `" 6 "`, `"10x"`) ou como float/Decimal
+    integral (`10.0`). `None` vira 1. Rejeita `bool`, valores não-integrais (`3.5`) e texto sem
+    número.
+    """
+    if value is None:
+        return 1
+    if isinstance(value, bool):
+        raise ValueError(f"quantidade de parcelas inválida: {value!r}")
+    if isinstance(value, int):
+        return value
+    if isinstance(value, (float, Decimal)):
+        try:
+            inteiro = int(value)
+        except (ValueError, OverflowError, TypeError) as exc:
+            raise ValueError(f"quantidade de parcelas inválida: {value!r}") from exc
+        if value != inteiro:
+            raise ValueError(f"quantidade de parcelas inválida: {value!r}")
+        return inteiro
+    if isinstance(value, str):
+        match = _NUMERO_RE.search(value)
+        if match is None:
+            raise ValueError(f"quantidade de parcelas inválida: {value!r}")
+        numero = Decimal(match.group().replace(",", "."))
+        if numero != numero.to_integral_value():
+            raise ValueError(f"quantidade de parcelas inválida: {value!r}")
+        return int(numero)
+    raise ValueError(f"quantidade de parcelas inválida: {value!r}")
+
+
 def calcular_parcelas(valor_compra: Decimal, quant_parcelas: int) -> list[Decimal]:
     """Divide o valor em parcelas que somam exatamente o total. Ver spec T10.
 
@@ -137,11 +174,7 @@ class Pagamento(BaseModel):
     @field_validator("quant_parcelas", mode="before")
     @classmethod
     def _validar_quant_parcelas(cls, value: object) -> int:
-        if value is None:
-            return 1
-        if isinstance(value, bool) or not isinstance(value, int):
-            raise ValueError(f"quantidade de parcelas inválida: {value!r}")
-        return value
+        return _parse_quant_parcelas(value)
 
     @model_validator(mode="after")
     def _aplicar_regras_de_parcelas(self) -> "Pagamento":
