@@ -8,15 +8,26 @@ Spec: specs/tasks/T17-evals.md
 """
 
 import argparse
+import asyncio
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
+from enum import Enum
 from pathlib import Path
+from time import perf_counter
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import yaml
 
+from app.config import get_settings
+from app.payment_extractor import PaymentExtractor
+from app.router import DeepSeekIntentFallback, IntentRouter
+from app.sheet_schema import SheetSchema
+
 CASOS_PATH = Path(__file__).resolve().parents[1] / "evals" / "casos.yaml"
+RESULTADOS_DIR = CASOS_PATH.parent / "resultados"
 CAMPOS_AVALIADOS = ("valor_compra", "moeda", "metodo_pagamento", "quant_parcelas", "categoria")
 LIMIAR_ROTA = 0.95
 LIMIAR_CAMPOS = 0.90
@@ -166,14 +177,172 @@ def verificar_cobertura(casos: list[Caso]) -> None:
         raise CasosError("cobertura insuficiente: " + "; ".join(problemas))
 
 
+def _campo_confere(obtido: Any, esperado: Any) -> bool:
+    """Compara um campo extraído com o valor esperado do caso (spec T17).
+
+    `valor_compra` é `Decimal` (compara via `Decimal(str(esperado))`); campos de enum
+    (`moeda`, `metodo_pagamento`, `categoria`) comparam pelo `.value`.
+    """
+    if isinstance(obtido, Decimal):
+        try:
+            return obtido == Decimal(str(esperado))
+        except (InvalidOperation, ValueError):
+            return False
+    if isinstance(obtido, Enum):
+        return str(obtido.value) == str(esperado)
+    return obtido == esperado
+
+
+def _motivo_rota(obtido: Any, esperado: str, erro: Exception | None) -> str:
+    """Descrição curta da falha de roteamento de um caso."""
+    if erro is not None:
+        return f"rota {esperado} ≠ erro ({type(erro).__name__})"
+    return f"rota {esperado} ≠ {obtido}"
+
+
 async def avaliar(
     casos: list[Caso], router: Any, extractor: Any, recebido_em: datetime
 ) -> Relatorio:
-    raise NotImplementedError("T17")
+    """Avalia roteador e extrator sobre os casos; exceções viram erro do caso.
+
+    Para cada caso de rota escrita, extrai o pagamento e confere apenas os campos
+    presentes em `esperado`. A latência medida é a de `route` (+ `extract`) por caso.
+    """
+    total = len(casos)
+    acertos_rota = 0
+    campos_total = 0
+    campos_acertos = 0
+    acertos_campo: Counter[str] = Counter()
+    total_campo: Counter[str] = Counter()
+    falhas: list[str] = []
+    latencias_ms: list[float] = []
+
+    for caso in casos:
+        inicio = perf_counter()
+        erro_rota: Exception | None = None
+        rota_obtida: Any = None
+        try:
+            rota = await router.route(caso.texto)
+            rota_obtida = rota.intencao.value
+        except Exception as exc:  # noqa: BLE001 - qualquer exceção é erro do caso
+            erro_rota = exc
+
+        resultado = None
+        if caso.rota == "escrita":
+            try:
+                resultado = await extractor.extract(caso.texto, recebido_em)
+            except Exception:  # noqa: BLE001 - falha de extração = todos os campos errados
+                resultado = None
+
+        latencias_ms.append((perf_counter() - inicio) * 1000)
+
+        if erro_rota is None and rota_obtida == caso.rota:
+            acertos_rota += 1
+        else:
+            falhas.append(f"{caso.id}: {_motivo_rota(rota_obtida, caso.rota, erro_rota)}")
+
+        if not caso.esperado:
+            continue
+
+        pagamento = resultado.pagamento if resultado is not None else None
+        campos_errados: list[str] = []
+        for campo, valor_esperado in caso.esperado.items():
+            total_campo[campo] += 1
+            campos_total += 1
+            if pagamento is not None and _campo_confere(getattr(pagamento, campo), valor_esperado):
+                campos_acertos += 1
+                acertos_campo[campo] += 1
+            else:
+                campos_errados.append(campo)
+        if campos_errados:
+            falhas.append(f"{caso.id}: campos incorretos: {', '.join(campos_errados)}")
+
+    acertos_por_campo = {
+        campo: acertos_campo[campo] / avaliados for campo, avaliados in total_campo.items()
+    }
+    return Relatorio(
+        total=total,
+        acuracia_rota=acertos_rota / total if total else 0.0,
+        acuracia_campos=campos_acertos / campos_total if campos_total else 0.0,
+        acertos_por_campo=acertos_por_campo,
+        latencia_media_ms=sum(latencias_ms) / len(latencias_ms) if latencias_ms else 0.0,
+        falhas=falhas,
+    )
 
 
 def render_relatorio(rel: Relatorio, quando: datetime) -> str:
-    raise NotImplementedError("T17")
+    """Renderiza o relatório de avaliação em Markdown (spec T17)."""
+    linhas = [
+        f"# Evals — {quando:%Y-%m-%d %H:%M}",
+        "",
+        f"- Casos avaliados: {rel.total}",
+        f"- Acurácia de rota: {rel.acuracia_rota:.1%} (limiar {LIMIAR_ROTA:.0%})",
+        f"- Acurácia de campos: {rel.acuracia_campos:.1%} (limiar {LIMIAR_CAMPOS:.0%})",
+        f"- Latência média: {rel.latencia_media_ms:.1f} ms",
+        "",
+        "## Acertos por campo",
+        "",
+    ]
+    for campo, acerto in rel.acertos_por_campo.items():
+        linhas.append(f"- {campo}: {acerto:.1%}")
+
+    linhas += ["", "## Falhas", ""]
+    if rel.falhas:
+        linhas.extend(f"- {falha}" for falha in rel.falhas)
+    else:
+        linhas.append("- (nenhuma)")
+
+    return "\n".join(linhas) + "\n"
+
+
+async def _rodar_live(
+    casos: list[Caso], router: IntentRouter, extractor: PaymentExtractor, recebido_em: datetime
+) -> Relatorio:
+    """Executa `avaliar` com as APIs reais e fecha o client HTTP do roteador ao final."""
+    try:
+        return await avaliar(casos, router, extractor, recebido_em)
+    finally:
+        await router.aclose()
+
+
+def _executar_live() -> int:
+    """Roda a avaliação ao vivo, grava `evals/resultados/<AAAA-MM-DD>.md` e aplica os limiares."""
+    settings = get_settings()
+    casos = load_casos(CASOS_PATH)
+    verificar_cobertura(casos)
+
+    schema = SheetSchema.load(settings.sheet_schema_path)
+    fallback = DeepSeekIntentFallback(
+        api_key=settings.deepseek_api_key,
+        model=settings.deepseek_model,
+        base_url=settings.deepseek_base_url,
+    )
+    router = IntentRouter(
+        api_key=settings.typesafe_api_key,
+        model=settings.jev_model,
+        base_url=settings.jev_base_url,
+        threshold=settings.router_confidence_threshold,
+        fallback=fallback,
+    )
+    extractor = PaymentExtractor(
+        api_key=settings.deepseek_api_key,
+        schema=schema,
+        model=settings.deepseek_model,
+        base_url=settings.deepseek_base_url,
+        default_currency=settings.default_currency,
+        timezone=settings.timezone,
+    )
+
+    recebido_em = datetime.now(ZoneInfo(settings.timezone))
+    rel = asyncio.run(_rodar_live(casos, router, extractor, recebido_em))
+
+    destino = RESULTADOS_DIR / f"{recebido_em:%Y-%m-%d}.md"
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.write_text(render_relatorio(rel, recebido_em), encoding="utf-8")
+    print(f"Relatório gravado em {destino}")
+
+    aprovado = rel.acuracia_rota >= LIMIAR_ROTA and rel.acuracia_campos >= LIMIAR_CAMPOS
+    return 0 if aprovado else 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -187,7 +356,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.live:
-        raise NotImplementedError("T17: --live será implementado na subtarefa 3")
+        try:
+            return _executar_live()
+        except CasosError as exc:
+            print(f"ERRO: {exc}")
+            return 1
 
     try:
         casos = load_casos(CASOS_PATH)
