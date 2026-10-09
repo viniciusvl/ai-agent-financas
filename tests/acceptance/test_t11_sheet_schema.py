@@ -80,8 +80,8 @@ def test_load_missing_or_invalid_file(tmp_path):
         SheetSchema.load(bad)
 
 
-def test_example_schema_in_repo_is_valid():
-    s = SheetSchema.load(ROOT / "config" / "planilha.example.yaml")
+def test_default_schema_in_repo_is_valid():
+    s = SheetSchema.load(ROOT / "config" / "planilha.yaml")
     campos = {c.campo for c in s.colunas}
     assert {"id", "data", "valor_compra", "metodo_pagamento", "quant_parcelas"} <= campos
     assert {"valor_parcela", "moeda", "descricao"} <= campos
