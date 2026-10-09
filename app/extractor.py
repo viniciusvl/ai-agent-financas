@@ -77,6 +77,19 @@ class ExpenseExtractor:
             raise ExtractionError("Falha ao consultar a API do DeepSeek") from exc
 
     @staticmethod
+    def _content_from_response(response: Any) -> Any:
+        """Extrai `choices[0].message.content` de forma defensiva.
+
+        Respostas sem `choices`, lista vazia, sem `message` ou sem `content`
+        retornam `None` (echo downstream vira `MSG_INVALID_RESPONSE`).
+        """
+        try:
+            choice = response.choices[0]
+            return choice.message.content
+        except (AttributeError, IndexError, KeyError, TypeError):
+            return None
+
+    @staticmethod
     def _strip_code_fence(content: str) -> str:
         """Remove cercas de código markdown (```json … ```) ao redor do JSON."""
         text = content.strip()
@@ -105,7 +118,7 @@ class ExpenseExtractor:
             return ExtractionResult(error=MSG_DEFAULT_NOT_EXPENSE)
 
         response = await self._call_api(self._build_messages(text, today))
-        content = response.choices[0].message.content
+        content = self._content_from_response(response)
         logger.debug("Resposta bruta do DeepSeek: %r", content)
 
         data = self._parse_content(content)

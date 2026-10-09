@@ -171,3 +171,31 @@ async def test_invalid_expense_fields_return_invalid_response(overrides):
     result = await extractor.extract(TEXT, today=TODAY)
     assert result.expense is None
     assert result.error == MSG_INVALID_RESPONSE
+
+
+class _EmptyChoicesCompletions:
+    """Fake que devolve uma resposta sem `choices` (revisão T04)."""
+
+    async def create(self, **kwargs):
+        return SimpleNamespace(choices=[])
+
+
+async def test_response_without_choices_returns_invalid_response():
+    client = SimpleNamespace(chat=SimpleNamespace(completions=_EmptyChoicesCompletions()))
+    extractor = ExpenseExtractor(api_key="k", client=client)
+    result = await extractor.extract(TEXT, today=TODAY)
+    assert result.expense is None
+    assert result.error == MSG_INVALID_RESPONSE
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        SimpleNamespace(choices=[]),
+        SimpleNamespace(),
+        SimpleNamespace(choices=[SimpleNamespace()]),
+        SimpleNamespace(choices=[SimpleNamespace(message=None)]),
+    ],
+)
+async def test_malformed_response_shapes_return_invalid_response(response):
+    assert ExpenseExtractor._content_from_response(response) is None
