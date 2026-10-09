@@ -105,22 +105,7 @@ class TelegramClient:
         return True
 
     async def download_file(self, file_id: str) -> bytes:
-        """Baixa o conteúdo de um arquivo pelo file_id; falhas viram TelegramError."""
-        result = await self._call("getFile", {"file_id": file_id})
-        file_path = result.get("file_path") if isinstance(result, dict) else None
-        if not file_path:
-            raise TelegramError(f"getFile não retornou file_path para o arquivo {file_id}")
-
-        url = f"{self.base_url}/file/bot{self.token}/{file_path}"
-        try:
-            response = await self._http.get(url)
-        except httpx.HTTPError as exc:
-            raise TelegramError(f"Falha de rede ao baixar arquivo: {exc}") from exc
-
-        if not response.is_success:
-            raise TelegramError(f"Falha ao baixar arquivo: HTTP {response.status_code}")
-
-        return response.content
+        raise NotImplementedError("T02")
 
     async def set_webhook(self, url: str, secret_token: str) -> bool:
         """Registra o webhook para mensagens e callbacks; devolve True em caso de sucesso."""
