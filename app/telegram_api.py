@@ -105,13 +105,18 @@ class TelegramClient:
     async def download_file(self, file_id: str) -> bytes:
         """Baixa o conteúdo de um arquivo pelo ``file_id``. Ver spec T02."""
         file_info = await self._call("getFile", {"file_id": file_id})
-        file_path = file_info["file_path"]
+        file_path = file_info.get("file_path") if isinstance(file_info, dict) else None
+        if not isinstance(file_path, str) or not file_path:
+            logger.warning("getFile não retornou file_path para file_id=%s", file_id)
+            raise TelegramError("getFile sem file_path")
         url = f"{self.base_url}/file/bot{self.token}/{file_path}"
         try:
             response = await self._http.get(url)
         except httpx.HTTPError as exc:
+            logger.warning("Falha de rede ao baixar arquivo: %s", exc)
             raise TelegramError(f"Falha de rede ao baixar arquivo: {exc}") from exc
         if not response.is_success:
+            logger.warning("Falha ao baixar arquivo (status %s)", response.status_code)
             raise TelegramError(f"Falha ao baixar arquivo (status {response.status_code})")
         return response.content
 

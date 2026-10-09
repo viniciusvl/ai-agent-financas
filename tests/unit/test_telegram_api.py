@@ -213,6 +213,18 @@ async def test_download_file_returns_content_and_calls_getfile():
     assert http.get_calls == ["https://api.telegram.org/file/bot123:ABC/voice/file_1.oga"]
 
 
+async def test_download_file_missing_file_path_raises_and_no_get():
+    http = FakeDownloadHTTP(
+        {"ok": True, "result": {"file_id": "F1"}},
+        FakeDownloadResponse(200, b"OGGDATA"),
+    )
+    client = TelegramClient("123:ABC", http=http)
+
+    with pytest.raises(TelegramError, match="getFile sem file_path"):
+        await client.download_file("F1")
+    assert http.get_calls == []
+
+
 async def test_download_file_non_2xx_raises_telegram_error():
     http = FakeDownloadHTTP(
         {"ok": True, "result": {"file_path": "voice/x.oga"}},
