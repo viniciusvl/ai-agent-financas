@@ -158,6 +158,16 @@ def opencode_bin() -> str:
     return found
 
 
+def task_env(task: TaskSpec) -> dict[str, str]:
+    """Ambiente das sessões/validações: o Python do runner vem primeiro no PATH.
+
+    No Windows, o atalho da Microsoft Store (WindowsApps\python.exe) pode ficar à frente do
+    interpretador real e quebrar `python -m pytest` dentro das sessões do agente.
+    """
+    path = os.pathsep.join([str(Path(sys.executable).parent), os.environ.get("PATH", "")])
+    return {**os.environ, "PATH": path, "ACCEPTANCE_TASKS": task.id, "PYTHONIOENCODING": "utf-8"}
+
+
 def tail(text: str, limit: int = TAIL_CHARS) -> str:
     text = text.strip()
     return text if len(text) <= limit else "…\n" + text[-limit:]
@@ -268,7 +278,7 @@ class CheckResult:
 
 
 def run_checks(task: TaskSpec, cwd: Path) -> CheckResult:
-    env = {**os.environ, "ACCEPTANCE_TASKS": task.id, "PYTHONIOENCODING": "utf-8"}
+    env = task_env(task)
     py = sys.executable
     checks = [
         ("Aceite da task", [py, "-m", "pytest", task.acceptance, "-q", "-rfE", "--no-header"]),
@@ -405,7 +415,7 @@ def run_session(task: TaskSpec, cwd: Path, session: int, prompt: str) -> str:
     prompt_file = log_dir / f"session-{session}-prompt.md"
     prompt_file.write_text(prompt, encoding="utf-8", newline="\n")
     log_file = log_dir / f"session-{session}.jsonl"
-    env = {**os.environ, "ACCEPTANCE_TASKS": task.id, "PYTHONIOENCODING": "utf-8"}
+    env = task_env(task)
     cmd = [
         opencode_bin(),
         "run",

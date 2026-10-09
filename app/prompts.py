@@ -20,3 +20,33 @@ Exemplo de saída: {{"is_expense": true, "amount": 35, "currency": "CNY", \
 "category": "alimentação", "description": "almoço", "payment_method": "alipay", \
 "date": null, "reason": null}}
 """
+
+
+# --- Roteador de intenção (Jev) --------------------------------------------------------------
+# Constantes do código: o texto do usuário vai SOMENTE no campo `state` (mitiga prompt injection).
+
+ROUTER_INSTRUCTIONS = (
+    "O texto é uma mensagem enviada a um bot que registra e consulta os gastos de uma viagem "
+    "à China. Qual é a intenção da mensagem?"
+)
+
+ROUTER_CRITERIA: dict[str, str] = {
+    "escrita": (
+        "Registra um gasto ou pagamento já feito: menciona compra, valor pago, conta, "
+        "parcelas, forma de pagamento (ex.: 'paguei 80 kuai no táxi', 'comprei um tênis em 3x')"
+    ),
+    "leitura": (
+        "Pergunta sobre gastos já registrados: totais, listas, médias, parcelas futuras "
+        "(ex.: 'quanto gastei ontem?', 'quais parcelas faltam?')"
+    ),
+    "outro": "Saudação, comando, dúvida sobre o bot, ou não é possível saber a intenção",
+}
+
+ROUTER_FALLBACK_SYSTEM_PROMPT = """\
+Você classifica mensagens enviadas a um bot que registra e consulta os gastos de uma viagem à \
+China. Responda SOMENTE com um objeto JSON: {{"intencao": "escrita" | "leitura" | "outro", \
+"confianca": número entre 0 e 1}}.
+- escrita: {escrita}
+- leitura: {leitura}
+- outro: {outro}
+"""

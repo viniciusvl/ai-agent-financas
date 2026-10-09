@@ -27,6 +27,15 @@ class Settings(BaseSettings):
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-flash"
 
+    # Jev (TypeSafe) — roteador de intenção
+    typesafe_api_key: str = ""
+    jev_model: str = "jev-1.13.0"
+    jev_base_url: str = "https://api.typesafe.ai"
+    router_confidence_threshold: float = 0.6
+
+    # Schema da planilha (formato padrão)
+    sheet_schema_path: str = "config/planilha.yaml"
+
     # Google Sheets
     google_service_account_file: str = "secrets/google-service-account.json"
     google_sheet_id: str = ""
