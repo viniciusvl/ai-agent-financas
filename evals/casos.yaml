@@ -1,0 +1,210 @@
+# Conjunto de casos de avaliação do roteador e do extrator (spec T17).
+#
+# rota: escrita | leitura | outro
+# esperado: apenas campos de CAMPOS_AVALIADOS e somente em casos de rota escrita.
+#   Campos possíveis: valor_compra, moeda, metodo_pagamento, quant_parcelas, categoria.
+#   Inclua apenas os campos que se quer conferir naquele caso.
+#
+# Contém transcrições realistas de áudio (sem pontuação, números por extenso, gírias como
+# "kuai") e mensagens típicas de uma viagem à China.
+casos:
+  - id: e001
+    texto: "paguei 80 kuai no táxi com wechat"
+    rota: escrita
+    esperado:
+      valor_compra: 80
+      moeda: CNY
+      metodo_pagamento: wechat_pay
+      categoria: transporte
+
+  - id: e002
+    texto: "almoço 35 yuan no alipay"
+    rota: escrita
+    esperado:
+      valor_compra: 35
+      moeda: CNY
+      metodo_pagamento: alipay
+      categoria: alimentação
+
+  - id: e003
+    texto: "gastei 120 reais na hospedagem com cartão de crédito"
+    rota: escrita
+    esperado:
+      valor_compra: 120
+      moeda: BRL
+      metodo_pagamento: credito_a_vista
+      categoria: hospedagem
+
+  - id: e004
+    texto: "comprei uma mochila por 250 rmb parcelado em 10x"
+    rota: escrita
+    esperado:
+      valor_compra: 250
+      moeda: CNY
+      metodo_pagamento: credito_parcelado
+      quant_parcelas: 10
+      categoria: compras
+
+  - id: e005
+    texto: "cinquenta yuan de entrada no museu"
+    rota: escrita
+    esperado:
+      valor_compra: 50
+      moeda: CNY
+      categoria: passeios
+
+  - id: e006
+    texto: "paguei 20 kuai no café da manhã em dinheiro"
+    rota: escrita
+    esperado:
+      valor_compra: 20
+      moeda: CNY
+      metodo_pagamento: dinheiro
+      categoria: alimentação
+
+  - id: e007
+    texto: "jantar 300 yuan no cartão de débito"
+    rota: escrita
+    esperado:
+      valor_compra: 300
+      moeda: CNY
+      metodo_pagamento: debito
+      categoria: alimentação
+
+  - id: e008
+    texto: "hotel 450 reais no débito"
+    rota: escrita
+    esperado:
+      valor_compra: 450
+      moeda: BRL
+      metodo_pagamento: debito
+      categoria: hospedagem
+
+  - id: e009
+    texto: "cinema 60 yuans com alipay"
+    rota: escrita
+    esperado:
+      valor_compra: 60
+      moeda: CNY
+      metodo_pagamento: alipay
+      categoria: passeios
+
+  - id: e010
+    texto: "uber para o aeroporto 95 kuai wechat"
+    rota: escrita
+    esperado:
+      valor_compra: 95
+      moeda: CNY
+      metodo_pagamento: wechat_pay
+      categoria: transporte
+
+  - id: e011
+    texto: "comprei lembrancinhas por 180 yuan parcelado em 6 vezes"
+    rota: escrita
+    esperado:
+      valor_compra: 180
+      moeda: CNY
+      metodo_pagamento: credito_parcelado
+      quant_parcelas: 6
+      categoria: compras
+
+  - id: e012
+    texto: "gastei 40 dólares no jantar"
+    rota: escrita
+    esperado:
+      valor_compra: 40
+      moeda: USD
+      categoria: alimentação
+
+  - id: e013
+    texto: "paguei 15 reais de água no pix"
+    rota: escrita
+    esperado:
+      valor_compra: 15
+      moeda: BRL
+      metodo_pagamento: pix
+      categoria: alimentação
+
+  - id: e014
+    texto: "táxi 30 kuai dinheiro"
+    rota: escrita
+    esperado:
+      valor_compra: 30
+      moeda: CNY
+      metodo_pagamento: dinheiro
+      categoria: transporte
+
+  - id: e015
+    texto: "comprei um celular por 3000 yuan em 12x no crédito"
+    rota: escrita
+    esperado:
+      valor_compra: 3000
+      moeda: CNY
+      metodo_pagamento: credito_parcelado
+      quant_parcelas: 12
+      categoria: compras
+
+  - id: e016
+    texto: "passagem de trem 260 yuan com wechat"
+    rota: escrita
+    esperado:
+      valor_compra: 260
+      moeda: CNY
+      metodo_pagamento: wechat_pay
+      categoria: transporte
+
+  - id: e017
+    texto: "quanto eu gastei no almoço hoje?"
+    rota: leitura
+
+  - id: e018
+    texto: "me mostra os gastos de ontem"
+    rota: leitura
+
+  - id: e019
+    texto: "qual foi o total da viagem?"
+    rota: leitura
+
+  - id: e020
+    texto: "quanto eu gastei de táxi até agora"
+    rota: leitura
+
+  - id: e021
+    texto: "lista meus gastos com alipay"
+    rota: leitura
+
+  - id: e022
+    texto: "qual foi o gasto mais caro da semana"
+    rota: leitura
+
+  - id: e023
+    texto: "quanto gastei em alimentação nessa viagem"
+    rota: leitura
+
+  - id: e024
+    texto: "me dá um resumo dos gastos de hoje"
+    rota: leitura
+
+  - id: e025
+    texto: "quantos reais eu já gastei no total"
+    rota: leitura
+
+  - id: e026
+    texto: "oi tudo bem?"
+    rota: outro
+
+  - id: e027
+    texto: "bom dia"
+    rota: outro
+
+  - id: e028
+    texto: "obrigado!"
+    rota: outro
+
+  - id: e029
+    texto: "qual é a capital da China?"
+    rota: outro
+
+  - id: e030
+    texto: "me ajuda com os comandos do bot"
+    rota: outro
