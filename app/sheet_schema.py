@@ -5,6 +5,7 @@ Spec: specs/tasks/T11-sheet-schema.md
 """
 
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +43,30 @@ class Coluna:
     tipo: str
     formato: str | None = None
     obrigatoria: bool = True
+
+
+def _formatar_valor(coluna: Coluna, valor: Any) -> Any:
+    """Converte um valor bruto na célula correspondente ao tipo da coluna (spec T11)."""
+    tipo = coluna.tipo
+    if tipo == "texto":
+        return "" if valor is None else str(valor)
+    if tipo == "data":
+        return "" if valor is None else valor.strftime(coluna.formato or "%d/%m/%Y")
+    if tipo == "hora":
+        return "" if valor is None else valor.strftime(coluna.formato or "%H:%M")
+    if tipo == "datahora":
+        if valor is None:
+            return ""
+        if coluna.formato:
+            return valor.strftime(coluna.formato)
+        return valor.isoformat()
+    if tipo == "moeda":
+        return float(valor)
+    if tipo == "inteiro":
+        return int(valor)
+    if tipo == "enum":
+        return str(valor.value) if isinstance(valor, Enum) else str(valor)
+    raise SchemaError(f"coluna {coluna.nome!r}: tipo desconhecido {tipo!r}")
 
 
 @dataclass(frozen=True)
@@ -124,10 +149,25 @@ class SheetSchema:
         return cls(aba=aba, colunas=tuple(colunas))
 
     def header(self) -> list[str]:
-        raise NotImplementedError("T11")
+        """Nomes das colunas, na ordem do schema."""
+        return [coluna.nome for coluna in self.colunas]
 
     def to_row(self, pagamento: Pagamento, extras: dict[str, Any]) -> list[Any]:
-        raise NotImplementedError("T11")
+        """Serializa um pagamento numa linha, um valor por coluna, na ordem do schema."""
+        celulas: list[Any] = []
+        for coluna in self.colunas:
+            if coluna.campo in CAMPOS_EXTRAS:
+                if coluna.campo not in extras:
+                    raise SchemaError(
+                        f"coluna {coluna.nome!r}: campo extra {coluna.campo!r} ausente em extras"
+                    )
+                valor = extras[coluna.campo]
+            else:
+                valor = getattr(pagamento, coluna.campo)
+            if coluna.obrigatoria and (valor is None or valor == ""):
+                raise SchemaError(f"coluna {coluna.nome!r} é obrigatória e está vazia")
+            celulas.append(_formatar_valor(coluna, valor))
+        return celulas
 
     def prompt_context(self) -> str:
         raise NotImplementedError("T11")
