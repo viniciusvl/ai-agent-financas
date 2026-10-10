@@ -18,10 +18,10 @@ from app.domain import (
 def make(**overrides):
     data = dict(
         amount=Decimal("35.5"),
-        currency=Currency.CNY,
+        currency=Currency.BRL,
         category=Category.ALIMENTACAO,
         description="almoço",
-        payment_method=PaymentMethod.ALIPAY,
+        payment_method=PaymentMethod.PIX,
         spent_at=date(2026, 10, 8),
         raw_text="gastei 35,5 no almoço",
     )
@@ -32,10 +32,10 @@ def make(**overrides):
 def test_format_confirmation_exact():
     assert format_confirmation(make()) == (
         "📝 <b>Confirme o gasto:</b>\n"
-        "• Valor: 35.50 CNY\n"
+        "• Valor: 35.50 BRL\n"
         "• Categoria: alimentação\n"
         "• Descrição: almoço\n"
-        "• Pagamento: alipay\n"
+        "• Pagamento: pix\n"
         "• Data: 08/10/2026"
     )
 
@@ -55,21 +55,21 @@ def test_format_confirmation_uses_normalized_values():
 
 
 def test_format_confirmation_zero_pads_amount():
-    assert "• Valor: 5.00 CNY" in format_confirmation(make(amount=5))
+    assert "• Valor: 5.00 BRL" in format_confirmation(make(amount=5))
 
 
 def test_to_sheet_row_order_and_values():
-    recorded_at = datetime(2026, 10, 8, 12, 30, tzinfo=ZoneInfo("Asia/Shanghai"))
+    recorded_at = datetime(2026, 10, 8, 12, 30, tzinfo=ZoneInfo("America/Sao_Paulo"))
     row = to_sheet_row(make(), user="Vini", recorded_at=recorded_at)
     assert row == [
         "2026-10-08",
         "almoço",
         "alimentação",
         35.5,
-        "CNY",
-        "alipay",
+        "BRL",
+        "pix",
         "Vini",
-        "2026-10-08T12:30:00+08:00",
+        "2026-10-08T12:30:00-03:00",
         "gastei 35,5 no almoço",
     ]
     assert isinstance(row[3], float)
@@ -81,6 +81,6 @@ def test_to_sheet_row_contains_raw_text_verbatim():
     row = to_sheet_row(
         make(raw_text=raw),
         user="Vini",
-        recorded_at=datetime(2026, 10, 8, 12, 30, tzinfo=ZoneInfo("Asia/Shanghai")),
+        recorded_at=datetime(2026, 10, 8, 12, 30, tzinfo=ZoneInfo("America/Sao_Paulo")),
     )
     assert row[-1] == raw
