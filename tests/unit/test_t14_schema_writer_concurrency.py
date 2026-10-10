@@ -17,7 +17,7 @@ from app.payment import Pagamento
 from app.sheet_schema import SheetSchema
 from app.sheets import PagamentoSheetWriter
 
-REG = datetime(2026, 10, 9, 10, 0, tzinfo=ZoneInfo("Asia/Shanghai"))
+REG = datetime(2026, 10, 9, 10, 0, tzinfo=ZoneInfo("America/Sao_Paulo"))
 SCHEMA_DICT = {
     "aba": "Gastos",
     "colunas": [

@@ -14,7 +14,7 @@ from app.extractor import (
 )
 
 TODAY = date(2026, 10, 8)
-TEXT = "gastei 35 kuai no almoço"
+TEXT = "gastei 35 reais no almoço"
 
 
 class _Completions:
@@ -112,10 +112,10 @@ def _expense_payload(**overrides) -> str:
     data = {
         "is_expense": True,
         "amount": 35,
-        "currency": "CNY",
+        "currency": "BRL",
         "category": "alimentação",
         "description": "almoço",
-        "payment_method": "alipay",
+        "payment_method": "outro",
         "date": None,
         "reason": None,
     }
@@ -133,10 +133,10 @@ async def test_expense_is_built_from_payload():
     assert result.error is None
     expense = result.expense
     assert expense.amount == Decimal("35.00")
-    assert expense.currency == Currency.CNY
+    assert expense.currency == Currency.BRL
     assert expense.category == Category.ALIMENTACAO
     assert expense.description == "almoço"
-    assert expense.payment_method == PaymentMethod.ALIPAY
+    assert expense.payment_method == PaymentMethod.OUTRO
     assert expense.spent_at == TODAY
     assert expense.raw_text == TEXT
 

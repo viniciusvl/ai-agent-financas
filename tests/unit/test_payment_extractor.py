@@ -16,7 +16,7 @@ from app.prompts import PAYMENT_EXTRACTION_SYSTEM_PROMPT
 from app.sheet_schema import SheetSchema
 
 RECEBIDO = datetime(2026, 10, 8, 22, 30, 41, tzinfo=ZoneInfo("UTC"))
-TEXTO = "almoço 35 kuai alipay"
+TEXTO = "almoço 35 reais no pix"
 
 
 @pytest.fixture
@@ -74,12 +74,12 @@ def test_default_client_is_async_openai(schema):
 
 def test_build_messages_formats_prompt_in_message_timezone(schema):
     extractor, _ = _make(schema, default_currency="BRL")
-    local = RECEBIDO.astimezone(ZoneInfo("Asia/Shanghai"))
+    local = RECEBIDO.astimezone(ZoneInfo("America/Sao_Paulo"))
     system, user = extractor._build_messages(TEXTO, local)
     assert system["role"] == "system"
     assert system["content"] == PAYMENT_EXTRACTION_SYSTEM_PROMPT.format(
-        agora="06:30",
-        hoje="2026-10-09",
+        agora="19:30",
+        hoje="2026-10-08",
         moeda_padrao="BRL",
         schema=schema.prompt_context(),
     )
@@ -255,7 +255,7 @@ async def test_invalid_date_and_time_fall_back_to_message(schema):
 
 
 async def test_missing_description_uses_text(schema):
-    texto = "  80 kuai " + "x" * 100
+    texto = "  80 reais " + "x" * 100
     extractor, _ = _make(schema, content=_payload_full(descricao="   "))
     pagamento = (await extractor.extract(texto, RECEBIDO)).pagamento
     assert pagamento is not None

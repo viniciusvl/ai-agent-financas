@@ -42,7 +42,7 @@ def test_currency_aliases(raw, expected):
     assert make(currency=raw).currency == expected
 
 
-@pytest.mark.parametrize("raw", ["cny", "yuan", "rmb", "gbp", "peso", 42, ""])
+@pytest.mark.parametrize("raw", ["gbp", "peso", "chf", 42, ""])
 def test_currency_invalid(raw):
     with pytest.raises(ValidationError):
         make(currency=raw)
@@ -69,7 +69,7 @@ def test_category_normalization(raw, expected):
     [
         ("DINHEIRO", PaymentMethod.DINHEIRO),
         ("Cartao", PaymentMethod.CARTAO),
-        ("alipay", PaymentMethod.OUTRO),
+        ("paypal", PaymentMethod.OUTRO),
         ("outro", PaymentMethod.OUTRO),
         ("pix", PaymentMethod.PIX),
         (PaymentMethod.CARTAO, PaymentMethod.CARTAO),

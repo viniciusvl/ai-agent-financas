@@ -102,7 +102,7 @@ async def test_answer_envia_parametros_esperados():
 )
 async def test_answer_nao_suportada(kw):
     ag, _ = _agent(**kw)
-    assert await ag.answer("qual a capital da China?", AGORA) == MSG_LEITURA_NAO_SUPORTADA
+    assert await ag.answer("qual a capital da França?", AGORA) == MSG_LEITURA_NAO_SUPORTADA
 
 
 async def test_answer_erro_do_llm_vira_read_error():

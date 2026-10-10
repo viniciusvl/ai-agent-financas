@@ -35,8 +35,8 @@ SCHEMA = SheetSchema.from_dict(
 )
 
 REGS = [
-    Registro(date(2026, 10, 5), D("35.00"), "CNY", "alimentação", "alipay", 1, "almoço"),
-    Registro(date(2026, 10, 6), D("80.50"), "CNY", "transporte", "wechat_pay", 1, "táxi"),
+    Registro(date(2026, 10, 5), D("35.00"), "EUR", "alimentação", "pix", 1, "almoço"),
+    Registro(date(2026, 10, 6), D("80.50"), "EUR", "transporte", "outro", 1, "táxi"),
     Registro(date(2026, 10, 6), D("300.00"), "BRL", "compras", "credito_parcelado", 3, "tênis"),
     Registro(date(2026, 9, 20), D("100.01"), "BRL", "compras", "credito_parcelado", 2, "mala"),
 ]
@@ -44,7 +44,7 @@ REGS = [
 
 def test_total_periodo_e_inclusivo_por_moeda():
     assert total_periodo(REGS, date(2026, 10, 5), date(2026, 10, 6)) == {
-        "CNY": D("115.50"),
+        "EUR": D("115.50"),
         "BRL": D("300.00"),
     }
     assert total_periodo(REGS, date(2026, 1, 1), date(2026, 1, 2)) == {}
@@ -52,13 +52,13 @@ def test_total_periodo_e_inclusivo_por_moeda():
 
 def test_total_por_categoria_e_metodo():
     cats = total_por_categoria(REGS, date(2026, 10, 1), date(2026, 10, 31))
-    assert cats["transporte"] == {"CNY": D("80.50")}
+    assert cats["transporte"] == {"EUR": D("80.50")}
     assert cats["compras"] == {"BRL": D("300.00")}
-    assert cats["alimentação"] == {"CNY": D("35.00")}
+    assert cats["alimentação"] == {"EUR": D("35.00")}
 
     metodos = total_por_metodo(REGS, date(2026, 10, 1), date(2026, 10, 31))
     assert metodos["credito_parcelado"] == {"BRL": D("300.00")}
-    assert metodos["alipay"] == {"CNY": D("35.00")}
+    assert metodos["pix"] == {"EUR": D("35.00")}
 
 
 def test_ultimos_empate_inverte_ordem_da_planilha():
@@ -106,8 +106,8 @@ class Clock:
 def _rows():
     return [
         SCHEMA.header(),
-        ["2026-10-05", "almoço", "alimentação", "alipay", 1, 35, "CNY"],
-        ["2026-10-06", "táxi", "transporte", "wechat_pay", 1, "80,50", "CNY"],
+        ["2026-10-05", "almoço", "alimentação", "pix", 1, 35, "EUR"],
+        ["2026-10-06", "táxi", "transporte", "outro", 1, "80,50", "EUR"],
     ]
 
 
