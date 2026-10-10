@@ -171,7 +171,7 @@ class ReadAgent:
         repo: GastosRepository,
         model: str = "deepseek-flash",
         base_url: str = "https://api.deepseek.com",
-        timezone: str = "Asia/Shanghai",
+        timezone: str = "America/Sao_Paulo",
         client: Any | None = None,
     ) -> None:
         self.repo = repo

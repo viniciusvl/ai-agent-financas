@@ -1,4 +1,4 @@
-# Imagem do china-financas-bot. Ver specs/tasks/T09-deploy.md
+# Imagem do ai-agent-financas. Ver specs/tasks/T09-deploy.md
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \

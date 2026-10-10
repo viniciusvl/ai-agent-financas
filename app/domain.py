@@ -13,9 +13,9 @@ from pydantic import BaseModel, field_validator
 
 
 class Currency(StrEnum):
-    CNY = "CNY"
     BRL = "BRL"
     USD = "USD"
+    EUR = "EUR"
 
 
 class Category(StrEnum):
@@ -30,8 +30,7 @@ class Category(StrEnum):
 class PaymentMethod(StrEnum):
     DINHEIRO = "dinheiro"
     CARTAO = "cartão"
-    ALIPAY = "alipay"
-    WECHAT = "wechat"
+    PIX = "pix"
     OUTRO = "outro"
 
 
@@ -108,13 +107,6 @@ def _normalize_key(value: object) -> str:
 
 
 _CURRENCY_ALIASES: dict[str, Currency] = {
-    "cny": Currency.CNY,
-    "rmb": Currency.CNY,
-    "yuan": Currency.CNY,
-    "yuans": Currency.CNY,
-    "kuai": Currency.CNY,
-    "¥": Currency.CNY,
-    "元": Currency.CNY,
     "brl": Currency.BRL,
     "r$": Currency.BRL,
     "real": Currency.BRL,
@@ -124,6 +116,10 @@ _CURRENCY_ALIASES: dict[str, Currency] = {
     "$": Currency.USD,
     "dolar": Currency.USD,
     "dolares": Currency.USD,
+    "eur": Currency.EUR,
+    "€": Currency.EUR,
+    "euro": Currency.EUR,
+    "euros": Currency.EUR,
 }
 
 _CATEGORY_BY_KEY: dict[str, Category] = {_normalize_key(c.value): c for c in Category}
@@ -133,9 +129,9 @@ _PAYMENT_METHOD_BY_KEY: dict[str, PaymentMethod] = {
 
 
 def _normalize_currency(value: object) -> Currency:
-    """Normaliza a moeda por aliases; `None` vira CNY e desconhecida é inválida."""
+    """Normaliza a moeda por aliases; `None` vira BRL e desconhecida é inválida."""
     if value is None:
-        return Currency.CNY
+        return Currency.BRL
     try:
         return _CURRENCY_ALIASES[_normalize_key(value)]
     except KeyError as exc:
@@ -160,7 +156,7 @@ class Expense(BaseModel):
     """Um gasto. As regras de validação/normalização estão na spec T01."""
 
     amount: Decimal
-    currency: Currency = Currency.CNY
+    currency: Currency = Currency.BRL
     category: Category = Category.OUTROS
     description: str
     payment_method: PaymentMethod = PaymentMethod.OUTRO

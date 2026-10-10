@@ -9,7 +9,7 @@ import pytest
 from app.payment import Pagamento
 from app.sheet_schema import SchemaError, SheetSchema
 
-REGISTRADO = datetime(2026, 10, 8, 21, 5, tzinfo=ZoneInfo("Asia/Shanghai"))
+REGISTRADO = datetime(2026, 10, 8, 21, 5, tzinfo=ZoneInfo("America/Sao_Paulo"))
 
 
 def _schema(*colunas):
@@ -60,7 +60,7 @@ def test_to_row_formats_each_type():
         3,
         100.0,
         "BRL",
-        "2026-10-08T21:05:00+08:00",
+        "2026-10-08T21:05:00-03:00",
     ]
     assert isinstance(row[5], int)
     assert isinstance(row[6], float)

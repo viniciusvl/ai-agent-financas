@@ -48,8 +48,8 @@ METODO_LABEL: dict[MetodoPagamento, str] = {
     MetodoPagamento.CREDITO_A_VISTA: "crédito à vista",
     MetodoPagamento.CREDITO_PARCELADO: "crédito parcelado",
     MetodoPagamento.PIX: "Pix",
-    MetodoPagamento.ALIPAY: "Alipay",
-    MetodoPagamento.WECHAT_PAY: "WeChat Pay",
+    MetodoPagamento.BOLETO: "boleto",
+    MetodoPagamento.TRANSFERENCIA: "transferência",
     MetodoPagamento.OUTRO: "outro",
 }
 
@@ -114,7 +114,7 @@ class BotService:
         store: Any,
         writer: Any,
         allowed_user_ids: set[int],
-        timezone: str = "Asia/Shanghai",
+        timezone: str = "America/Sao_Paulo",
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.telegram = telegram

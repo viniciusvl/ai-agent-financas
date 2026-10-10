@@ -28,9 +28,9 @@ _EPOCA_SHEETS = date(1899, 12, 30)
 
 # Prefixos das moedas conhecidas; demais recebem "<MOEDA> ".
 _PREFIXOS_MOEDA: dict[str, str] = {
-    "CNY": "¥ ",
     "BRL": "R$ ",
     "USD": "US$ ",
+    "EUR": "€ ",
 }
 
 
@@ -42,7 +42,7 @@ class ReadError(Exception):
 class Registro:
     data: date
     valor_compra: Decimal
-    moeda: str = "CNY"
+    moeda: str = "BRL"
     categoria: str = "outros"
     metodo_pagamento: str = "outro"
     quant_parcelas: int = 1
@@ -145,7 +145,7 @@ def _texto(valor: Any, padrao: str = "") -> str:
 
 
 def format_valor(moeda: str, valor: Decimal) -> str:
-    """CNY → "¥ 1.234,56"; BRL → "R$ 1.234,56"; USD → "US$ 1.234,56"; outras → "XXX 1.234,56"."""
+    """BRL → "R$ 1.234,56"; USD → "US$ 1.234,56"; EUR → "€ 1.234,56"; outras → "XXX 1.234,56"."""
     numero = f"{valor:,.2f}".replace(",", "\x00").replace(".", ",").replace("\x00", ".")
     return f"{_PREFIXOS_MOEDA.get(moeda, f'{moeda} ')}{numero}"
 
@@ -188,7 +188,7 @@ def parse_rows(schema: SheetSchema, rows: list[list[Any]]) -> list[Registro]:
             Registro(
                 data=data,
                 valor_compra=valor,
-                moeda=_texto(celula(row, "moeda"), "CNY"),
+                moeda=_texto(celula(row, "moeda"), "BRL"),
                 categoria=_texto(celula(row, "categoria"), "outros"),
                 metodo_pagamento=_texto(celula(row, "metodo_pagamento"), "outro"),
                 quant_parcelas=quant_parcelas,
