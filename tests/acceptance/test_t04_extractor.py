@@ -16,7 +16,7 @@ from app.extractor import (
 pytestmark = pytest.mark.task("T04")
 
 TODAY = date(2026, 10, 8)
-TEXT = "gastei 35 kuai no almoço, paguei com alipay"
+TEXT = "gastei 35 reais no almoço, paguei em dinheiro"
 
 
 class FakeCompletions:
@@ -43,10 +43,10 @@ def payload(**overrides):
     data = {
         "is_expense": True,
         "amount": 35,
-        "currency": "CNY",
+        "currency": "BRL",
         "category": "alimentação",
         "description": "almoço",
-        "payment_method": "alipay",
+        "payment_method": "dinheiro",
         "date": None,
         "reason": None,
     }
@@ -60,10 +60,10 @@ async def test_extracts_expense():
     assert result.error is None
     e = result.expense
     assert e.amount == Decimal("35.00")
-    assert e.currency == Currency.CNY
+    assert e.currency == Currency.BRL
     assert e.category == Category.ALIMENTACAO
     assert e.description == "almoço"
-    assert e.payment_method == PaymentMethod.ALIPAY
+    assert e.payment_method == PaymentMethod.DINHEIRO
     assert e.spent_at == TODAY
     assert e.raw_text == TEXT
 
@@ -79,7 +79,7 @@ async def test_request_parameters():
     assert messages[0]["role"] == "system"
     assert "JSON" in messages[0]["content"]
     assert "2026-10-08" in messages[0]["content"]
-    assert "CNY" in messages[0]["content"]
+    assert extractor.default_currency in messages[0]["content"]
     assert messages[-1] == {"role": "user", "content": TEXT}
 
 

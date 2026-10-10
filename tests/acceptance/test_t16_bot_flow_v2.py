@@ -18,18 +18,18 @@ from app.telegram_api import confirmation_keyboard
 
 pytestmark = pytest.mark.task("T16")
 
-NOW = datetime(2026, 10, 9, 10, 0, tzinfo=ZoneInfo("Asia/Shanghai"))
+NOW = datetime(2026, 10, 9, 10, 0, tzinfo=ZoneInfo("America/Sao_Paulo"))
 MSG_TS = 1791504000  # 2026-10-09 00:00:00 UTC
 OWNER = 111
 
 
 def pagamento(**kw):
     data = dict(
-        metodo_pagamento="alipay",
+        metodo_pagamento="pix",
         data=date(2026, 10, 9),
         hora=time(14, 7),
         valor_compra=Decimal("35"),
-        moeda="CNY",
+        moeda="BRL",
         categoria="alimentação",
         descricao="almoço",
     )
@@ -76,9 +76,9 @@ def test_format_confirmacao_parcelas_desiguais_e_sem_hora():
 
 
 def test_format_confirmacao_simples():
-    text = format_confirmacao(pagamento(metodo_pagamento="wechat_pay"))
-    assert "• Valor: ¥ 35,00" in text
-    assert "• Pagamento: WeChat Pay\n" in text
+    text = format_confirmacao(pagamento(metodo_pagamento="debito"))
+    assert "• Valor: R$ 35,00" in text
+    assert "• Pagamento: débito\n" in text
 
 
 def test_format_registrado():
@@ -163,7 +163,7 @@ class FakeExtractor:
 
 
 class FakeReadAgent:
-    def __init__(self, answer="💰 Total: ¥ 10,00", exc=None):
+    def __init__(self, answer="💰 Total: R$ 10,00", exc=None):
         self.answer_text, self.exc, self.calls = answer, exc, []
 
     async def answer(self, pergunta, agora):
@@ -214,7 +214,7 @@ def make_bot(allowed=frozenset({OWNER}), **overrides):
     )
     deps.update(overrides)
     bot = BotService(
-        **deps, allowed_user_ids=set(allowed), timezone="Asia/Shanghai", clock=lambda: NOW
+        **deps, allowed_user_ids=set(allowed), timezone="America/Sao_Paulo", clock=lambda: NOW
     )
     return bot, deps
 
@@ -290,10 +290,10 @@ async def test_help(command):
 
 async def test_write_flow_asks_confirmation_with_message_timestamp():
     bot, d = make_bot()
-    await bot.handle_update(text_update("almoço 35 alipay"))
-    assert d["router"].calls == ["almoço 35 alipay"]
+    await bot.handle_update(text_update("almoço 35 pix"))
+    assert d["router"].calls == ["almoço 35 pix"]
     call = d["extractor"].calls[0]
-    assert call["texto"] == "almoço 35 alipay"
+    assert call["texto"] == "almoço 35 pix"
     assert call["recebido_em"] == datetime(2026, 10, 9, 0, 0, tzinfo=ZoneInfo("UTC"))
     stored = d["store"].items["id1"]
     assert (stored.chat_id, stored.user_id, stored.expense) == (OWNER, OWNER, pagamento())
@@ -339,7 +339,7 @@ async def test_read_flow():
     await bot.handle_update(text_update("quanto gastei?"))
     assert d["read_agent"].calls[0]["pergunta"] == "quanto gastei?"
     assert d["read_agent"].calls[0]["agora"] == datetime(2026, 10, 9, tzinfo=ZoneInfo("UTC"))
-    assert d["telegram"].sent[0]["text"] == "💰 Total: ¥ 10,00"
+    assert d["telegram"].sent[0]["text"] == "💰 Total: R$ 10,00"
     assert d["extractor"].calls == []
 
 

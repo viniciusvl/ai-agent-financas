@@ -15,11 +15,11 @@ D = Decimal
 
 def make(**overrides):
     data = dict(
-        metodo_pagamento="alipay",
+        metodo_pagamento="pix",
         data=date(2026, 10, 8),
         valor_compra=D("35.50"),
         descricao="almoço",
-        texto_original="almoço 35,5 no alipay",
+        texto_original="almoço 35,5 no pix",
     )
     data.update(overrides)
     return Pagamento(**data)
@@ -79,10 +79,6 @@ def test_calcular_parcelas_quantidade_invalida(n):
         ("crédito à vista", MetodoPagamento.CREDITO_A_VISTA),
         ("parcelado", MetodoPagamento.CREDITO_PARCELADO),
         ("PIX", MetodoPagamento.PIX),
-        ("Zhifubao", MetodoPagamento.ALIPAY),
-        ("WeChat", MetodoPagamento.WECHAT_PAY),
-        ("wechat pay", MetodoPagamento.WECHAT_PAY),
-        ("weixin", MetodoPagamento.WECHAT_PAY),
         ("boleto", MetodoPagamento.OUTRO),
         (None, MetodoPagamento.OUTRO),
     ],
@@ -111,7 +107,7 @@ def test_campos_basicos_e_normalizacoes():
     assert p.descricao == "jantar"
     assert p.hora == time(20, 15)
     assert p.quant_parcelas == 1
-    assert make(moeda=None, categoria=None).moeda is Currency.CNY
+    assert make(moeda=None, categoria=None).categoria is Category.OUTROS
 
 
 @pytest.mark.parametrize("valor", [0, -5, "abc", ""])
@@ -145,7 +141,7 @@ def test_parcelado_com_quantidade_invalida(n):
         make(metodo_pagamento="credito_parcelado", quant_parcelas=n)
 
 
-@pytest.mark.parametrize("metodo", ["debito", "dinheiro", "pix", "alipay", "wechat_pay", "outro"])
+@pytest.mark.parametrize("metodo", ["debito", "dinheiro", "pix", "outro"])
 def test_outros_metodos_forcam_uma_parcela(metodo):
     p = make(metodo_pagamento=metodo, quant_parcelas=6)
     assert p.quant_parcelas == 1

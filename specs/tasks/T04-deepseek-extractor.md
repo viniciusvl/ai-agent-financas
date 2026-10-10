@@ -17,7 +17,7 @@ allowed_paths:
 ## Requisitos
 
 - `__init__(api_key, model="deepseek-flash", base_url="https://api.deepseek.com",
-  default_currency="CNY", client=None)`: guarda atributos; client padrão
+  default_currency="BRL", client=None)`: guarda atributos; client padrão
   `openai.AsyncOpenAI(api_key=..., base_url=...)` em `self.client`.
 - `extract(text, today) -> ExtractionResult`:
   - texto vazio/só espaços → `ExtractionResult(error=MSG_DEFAULT_NOT_EXPENSE)` sem chamar a API;

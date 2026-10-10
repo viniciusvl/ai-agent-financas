@@ -28,7 +28,7 @@ para o container em `127.0.0.1:8000`.
   `ports: ["127.0.0.1:8000:8000"]`, volumes `./data:/app/data`,
   `./secrets:/app/secrets:ro` e `./config:/app/config:ro` (editar o formato da planilha sem rebuild), `restart: unless-stopped` e `healthcheck` chamando
   `http://127.0.0.1:8000/health` (com python/urllib — a imagem slim não tem curl).
-- **deploy/nginx/china-financas-bot.conf**: server 80 → `return 301 https://$host$request_uri`
+- **deploy/nginx/ai-agent-financas.conf**: server 80 → `return 301 https://$host$request_uri`
   (exceto `/.well-known/acme-challenge/`); server `listen 443 ssl` com `server_name`,
   certificados do Let's Encrypt, `location /telegram/webhook` e `location /health` com
   `proxy_pass http://127.0.0.1:8000`; qualquer outra rota → 404.

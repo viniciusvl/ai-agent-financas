@@ -21,10 +21,11 @@ from app.sheet_schema import SheetSchema
 
 pytestmark = pytest.mark.task("T13")
 
-# 2026-10-08 22:30 UTC == 2026-10-09 06:30 em Xangai
-RECEBIDO = datetime(2026, 10, 8, 22, 30, 41, tzinfo=ZoneInfo("UTC"))
-HOJE = date(2026, 10, 9)
-AGORA = time(6, 30)
+# 2026-10-09 02:30 UTC == 2026-10-08 23:30 em São Paulo (fuso explícito nos testes)
+TZ = "America/Sao_Paulo"
+RECEBIDO = datetime(2026, 10, 9, 2, 30, 41, tzinfo=ZoneInfo("UTC"))
+HOJE = date(2026, 10, 8)
+AGORA = time(23, 30)
 
 
 @functools.cache
@@ -57,15 +58,18 @@ class FakeCompletions:
 def make(content=None, **kw):
     completions = FakeCompletions(content, **kw)
     client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
-    return PaymentExtractor(api_key="k", schema=_schema(), client=client), completions
+    extractor = PaymentExtractor(
+        api_key="k", schema=_schema(), client=client, timezone=TZ, default_currency="BRL"
+    )
+    return extractor, completions
 
 
 def payload(**overrides):
     data = {
         "is_pagamento": True,
         "valor_compra": 35,
-        "moeda": "CNY",
-        "metodo_pagamento": "alipay",
+        "moeda": "BRL",
+        "metodo_pagamento": "pix",
         "quant_parcelas": None,
         "categoria": "alimentação",
         "descricao": "almoço",
@@ -79,7 +83,7 @@ def payload(**overrides):
 
 async def test_request_parameters():
     extractor, completions = make(payload())
-    await extractor.extract("almoço 35 kuai alipay", RECEBIDO)
+    await extractor.extract("almoço 35 reais pix", RECEBIDO)
     call = completions.calls[0]
     assert call["model"] == "deepseek-flash"
     assert call["temperature"] == 0
@@ -88,28 +92,28 @@ async def test_request_parameters():
         {
             "role": "system",
             "content": PAYMENT_EXTRACTION_SYSTEM_PROMPT.format(
-                agora="06:30",
-                hoje="2026-10-09",
-                moeda_padrao="CNY",
+                agora="23:30",
+                hoje="2026-10-08",
+                moeda_padrao="BRL",
                 schema=_schema().prompt_context(),
             ),
         },
-        {"role": "user", "content": "almoço 35 kuai alipay"},
+        {"role": "user", "content": "almoço 35 reais pix"},
     ]
 
 
 async def test_simple_payment_uses_message_date_and_time():
     extractor, _ = make(payload())
-    result = await extractor.extract("almoço 35 kuai alipay", RECEBIDO)
+    result = await extractor.extract("almoço 35 reais pix", RECEBIDO)
     p = result.pagamento
     assert result.erro is None and result.pergunta is None
     assert p.valor_compra == Decimal("35.00")
-    assert p.moeda is Currency.CNY
-    assert p.metodo_pagamento is MetodoPagamento.ALIPAY
+    assert p.moeda is Currency.BRL
+    assert p.metodo_pagamento is MetodoPagamento.PIX
     assert p.categoria is Category.ALIMENTACAO
     assert p.data == HOJE
     assert p.hora == AGORA
-    assert p.texto_original == "almoço 35 kuai alipay"
+    assert p.texto_original == "almoço 35 reais pix"
 
 
 async def test_installments_are_computed_by_the_app():
@@ -132,16 +136,16 @@ async def test_installments_are_computed_by_the_app():
 
 
 async def test_explicit_date_and_time():
-    extractor, _ = make(payload(data="2026-10-08", hora="23:15"))
+    extractor, _ = make(payload(data="2026-10-07", hora="23:15"))
     p = (await extractor.extract("ontem às 23h15 jantar 35", RECEBIDO)).pagamento
-    assert p.data == date(2026, 10, 8)
+    assert p.data == date(2026, 10, 7)
     assert p.hora == time(23, 15)
 
 
 async def test_past_date_without_time_has_no_time():
-    extractor, _ = make(payload(data="2026-10-07"))
+    extractor, _ = make(payload(data="2026-10-06"))
     p = (await extractor.extract("anteontem jantar 35", RECEBIDO)).pagamento
-    assert p.data == date(2026, 10, 7)
+    assert p.data == date(2026, 10, 6)
     assert p.hora is None
 
 
@@ -167,7 +171,7 @@ async def test_installments_without_count_asks_question():
 
 
 async def test_missing_description_uses_text():
-    texto = "  80 kuai " + "x" * 100
+    texto = "  80 reais " + "x" * 100
     extractor, _ = make(payload(descricao=None))
     p = (await extractor.extract(texto, RECEBIDO)).pagamento
     assert p.descricao == texto.strip()[:80]

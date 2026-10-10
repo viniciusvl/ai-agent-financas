@@ -8,8 +8,8 @@ def test_allowed_user_ids_from_comma_separated_string(monkeypatch):
 
 def test_defaults():
     settings = Settings(_env_file=None)
-    assert settings.timezone == "Asia/Shanghai"
-    assert settings.default_currency == "CNY"
+    assert settings.timezone == "America/Sao_Paulo"
+    assert settings.default_currency == "BRL"
     assert settings.whisper_base_url is None
 
 

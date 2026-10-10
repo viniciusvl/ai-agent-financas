@@ -1,44 +1,40 @@
-# Spec de produto — china-financas-bot
+# Spec de produto — ai-agent-financas
 
 ## Objetivo
 
-Registrar, com o mínimo de atrito, todos os gastos de uma viagem à China em uma planilha do
-Google Sheets, a partir de mensagens de texto ou áudio enviadas a um bot do Telegram.
+Registrar e consultar, com o mínimo de atrito, gastos pessoais numa **planilha específica do
+Google Sheets**, a partir de mensagens de texto ou áudio enviadas a um bot do Telegram. O
+modelo da planilha é definido pelo dono e descrito em `config/planilha.yaml`.
 
 ## Fluxo principal
 
-1. Usuário autorizado envia ao bot um **texto** ("gastei 35 kuai no almoço, alipay") ou um
+1. Usuário autorizado envia ao bot um **texto** ("gastei 35 reais no almoço, pix") ou um
    **áudio** (voice note ou arquivo de áudio).
 2. O Telegram entrega o update via **webhook HTTPS** ao servidor (EC2, domínio próprio).
-3. Se for áudio, o servidor baixa o arquivo e transcreve com **Whisper**; o bot responde com a
-   transcrição.
-4. O texto é enviado ao **DeepSeek**, que devolve JSON estruturado do gasto.
-5. O bot responde com o resumo do gasto e os botões **✅ Confirmar** / **❌ Cancelar**. O gasto
-   fica pendente (SQLite) por até 24 h.
-6. Ao confirmar, o gasto é inserido como nova linha na planilha e a mensagem é editada para
-   "✅ Gasto registrado!". Ao cancelar, o pendente é descartado.
+3. Se for áudio, o servidor transcreve com **Whisper**; o bot responde com a transcrição.
+4. O **roteador** decide entre registrar (escrita), consultar (leitura) ou outro.
+5. Escrita: o **DeepSeek** extrai o pagamento; a aplicação calcula as parcelas; o bot pede
+   confirmação (**✅ Confirmar** / **❌ Cancelar**) e grava a linha no formato da planilha.
+6. Leitura: o DeepSeek escolhe a consulta; a aplicação calcula e responde.
 
-## Dados de um gasto
+## Dados de um pagamento
 
 | Campo | Tipo | Regra |
 |---|---|---|
-| amount | Decimal | > 0, 2 casas decimais |
-| currency | CNY / BRL / USD | padrão CNY |
-| category | alimentação, transporte, hospedagem, compras, passeios, outros | padrão outros |
-| description | texto | 1–200 caracteres |
-| payment_method | dinheiro, cartão, alipay, wechat, outro | padrão outro |
-| spent_at | data | padrão: hoje no fuso Asia/Shanghai |
-| raw_text | texto | mensagem/transcrição original |
-
-Colunas da planilha: Data, Descrição, Categoria, Valor, Moeda, Pagamento, Usuário,
-Registrado em, Texto original.
+| valor_compra | Decimal | > 0, 2 casas decimais |
+| moeda | BRL / USD / EUR | padrão BRL |
+| metodo_pagamento | dinheiro, débito, crédito à vista, crédito parcelado, Pix, boleto, transferência, outro | padrão outro |
+| quant_parcelas | inteiro | 2–24 só no crédito parcelado |
+| categoria | alimentação, transporte, hospedagem, compras, passeios, outros | padrão outros |
+| descricao | texto | 1–200 caracteres |
+| data / hora | data, hora | padrão: momento da mensagem no fuso configurado (America/Sao_Paulo) |
 
 ## Requisitos não funcionais
 
 - **Segurança:** webhook valida o header `X-Telegram-Bot-Api-Secret-Token`; apenas IDs em
   `ALLOWED_USER_IDS` podem usar o bot; segredos só via `.env` / `secrets/` (nunca no git).
 - **Robustez:** falhas de STT/LLM/Sheets geram mensagens amigáveis e nunca derrubam o
-  processo; updates duplicados do Telegram são ignorados.
+  processo; updates duplicados do Telegram são ignorados; gravação idempotente.
 - **Operação:** Docker Compose na EC2, Nginx com TLS (Let's Encrypt) na frente, `/health`.
 
 ## Arquitetura v2 (módulos) — ver issue #23

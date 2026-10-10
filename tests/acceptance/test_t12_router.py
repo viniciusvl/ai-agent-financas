@@ -72,12 +72,12 @@ async def test_request_shape_and_choice(http):
     route = respx.post(URL).mock(
         return_value=jev_answer("escrita", {"escrita": 0.9, "leitura": 0.05, "outro": 0.05})
     )
-    rota = await make_router(http).route("paguei 80 kuai no táxi")
+    rota = await make_router(http).route("paguei 80 reais no mercado")
     request = route.calls.last.request
     assert request.headers["authorization"] == f"Bearer {KEY}"
     assert json.loads(request.content) == {
         "model": "jev-1.13.0",
-        "state": "paguei 80 kuai no táxi",
+        "state": "paguei 80 reais no mercado",
         "questions": {
             "intencao": {
                 "type": "choice",

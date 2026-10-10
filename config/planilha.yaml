@@ -1,6 +1,6 @@
-# Formato padrão da planilha de gastos (fonte única: prompts + escritor).
-# PROVISÓRIO (decisão D2 da issue #23) — edite colunas, ordem e formatos à vontade;
-# o bot valida o cabeçalho da aba contra este arquivo ao iniciar.
+# Formato da SUA planilha de gastos (fonte única: prompts + escritor + leitura).
+# EXEMPLO — ajuste aba, colunas, ordem e formatos para o modelo da sua planilha;
+# o agente confere o cabeçalho da aba contra este arquivo e não grava se houver divergência.
 #
 # campo: um de metodo_pagamento, data, hora, quant_parcelas, valor_compra, moeda, categoria,
 #        descricao, texto_original, valor_parcela, valor_primeira_parcela, id, usuario,

@@ -42,8 +42,8 @@ class Settings(BaseSettings):
     google_worksheet_name: str = "Gastos"
 
     # App
-    timezone: str = "Asia/Shanghai"
-    default_currency: str = "CNY"
+    timezone: str = "America/Sao_Paulo"
+    default_currency: str = "BRL"
     db_path: str = "data/bot.db"
     pending_ttl_seconds: int = 86400
     log_level: str = "INFO"

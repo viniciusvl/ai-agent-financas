@@ -31,8 +31,8 @@ normalização/valor); não altere `app/domain.py`.
 | `credito`, `crédito`, `cartao`, `cartao de credito`, `credito a vista`, `credito_a_vista` | `credito_a_vista` |
 | `parcelado`, `credito parcelado`, `credito_parcelado` | `credito_parcelado` |
 | `pix` | `pix` |
-| `alipay`, `zhifubao` | `alipay` |
-| `wechat`, `wechat pay`, `wechatpay`, `wechat_pay`, `weixin` | `wechat_pay` |
+| `boleto`, `boleto bancário` | `boleto` |
+| `transferência`, `transferencia bancaria`, `ted`, `doc` | `transferencia` |
 | qualquer outro, `None` | `outro` |
 
 ### `Pagamento`
@@ -40,7 +40,7 @@ normalização/valor); não altere `app/domain.py`.
   ROUND_HALF_UP, > 0).
 - `descricao`: mesmas regras de `Expense.description` (str, strip, 1–200).
 - `moeda`/`categoria`: mesmas normalizações de `Expense.currency`/`Expense.category`
-  (`None` → CNY / outros).
+  (`None` → BRL / outros).
 - `quant_parcelas`: `None` → 1. Regras (model validator, depois dos campos):
   1. `credito_a_vista` com `quant_parcelas >= 2` → vira `credito_parcelado`.
   2. `credito_parcelado` exige `2 <= quant_parcelas <= 24`, senão `ValidationError`.
