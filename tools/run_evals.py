@@ -22,6 +22,8 @@ from zoneinfo import ZoneInfo
 import yaml
 
 from app.config import get_settings
+from app.domain import Currency
+from app.payment import MetodoPagamento
 from app.payment_extractor import PaymentExtractor
 from app.router import DeepSeekIntentFallback, IntentRouter
 from app.sheet_schema import SheetSchema
@@ -33,20 +35,14 @@ LIMIAR_ROTA = 0.95
 LIMIAR_CAMPOS = 0.90
 ROTAS = ("escrita", "leitura", "outro")
 
-# Cobertura mínima exigida de `evals/casos.yaml` (spec T17).
+# Cobertura mínima exigida de `evals/casos.yaml` (spec T17). Métodos e moedas são derivados
+# dos enums do domínio para que novos membros passem a ser exigidos automaticamente.
 MIN_POR_ROTA = {"escrita": 30, "leitura": 15, "outro": 10}
-METODOS_PAGAMENTO = (
-    "dinheiro",
-    "debito",
-    "credito_a_vista",
-    "credito_parcelado",
-    "pix",
-    "alipay",
-    "wechat_pay",
-    "outro",
-)
+METODOS_PAGAMENTO = tuple(m.value for m in MetodoPagamento)
+MOEDAS = tuple(c.value for c in Currency)
 MIN_POR_METODO = 2
-MIN_POR_MOEDA = {"CNY": 10, "BRL": 5, "USD": 3}
+MIN_POR_MOEDA = 3
+MIN_MOEDA_FREQUENTE = 10
 MIN_PARCELADOS = 6
 MIN_PARCELAS_DISTINTAS = 4
 
@@ -153,9 +149,13 @@ def verificar_cobertura(casos: list[Caso]) -> None:
             problemas.append(f"metodo_pagamento '{metodo}': {por_metodo[metodo]}/{MIN_POR_METODO}")
 
     por_moeda = Counter(c.esperado.get("moeda") for c in casos)
-    for moeda, minimo in MIN_POR_MOEDA.items():
-        if por_moeda[moeda] < minimo:
-            problemas.append(f"moeda '{moeda}': {por_moeda[moeda]}/{minimo}")
+    for moeda in MOEDAS:
+        if por_moeda[moeda] < MIN_POR_MOEDA:
+            problemas.append(f"moeda '{moeda}': {por_moeda[moeda]}/{MIN_POR_MOEDA}")
+    if MOEDAS and max(por_moeda[moeda] for moeda in MOEDAS) < MIN_MOEDA_FREQUENTE:
+        problemas.append(
+            f"moeda mais frequente: {max(por_moeda[m] for m in MOEDAS)}/{MIN_MOEDA_FREQUENTE}"
+        )
 
     parcelas = [
         c.esperado["quant_parcelas"]
