@@ -43,7 +43,9 @@ def test_compose():
 
 
 def test_nginx_config():
-    content = read("deploy/nginx/china-financas-bot.conf")
+    confs = [p for p in (ROOT / "deploy" / "nginx").glob("*.conf") if "http-only" not in p.name]
+    assert len(confs) == 1, "uma config completa do Nginx em deploy/nginx/"
+    content = confs[0].read_text(encoding="utf-8")
     assert "server_name" in content
     assert "location /telegram/webhook" in content
     assert "location /health" in content

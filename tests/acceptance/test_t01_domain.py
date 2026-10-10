@@ -21,10 +21,10 @@ pytestmark = pytest.mark.task("T01")
 def make(**overrides):
     data = dict(
         amount=Decimal("35.5"),
-        currency=Currency.CNY,
+        currency=Currency.BRL,
         category=Category.ALIMENTACAO,
         description="almoço",
-        payment_method=PaymentMethod.ALIPAY,
+        payment_method=PaymentMethod.DINHEIRO,
         spent_at=date(2026, 10, 8),
         raw_text="gastei 35,5 no almoço",
     )
@@ -68,11 +68,6 @@ def test_description_invalid(raw):
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
-        ("cny", Currency.CNY),
-        ("RMB", Currency.CNY),
-        ("yuan", Currency.CNY),
-        ("kuai", Currency.CNY),
-        ("¥", Currency.CNY),
         ("brl", Currency.BRL),
         ("R$", Currency.BRL),
         ("reais", Currency.BRL),
@@ -80,7 +75,6 @@ def test_description_invalid(raw):
         ("US$", Currency.USD),
         ("dólar", Currency.USD),
         ("dolares", Currency.USD),
-        (None, Currency.CNY),
     ],
 )
 def test_currency_aliases(raw, expected):
@@ -109,9 +103,8 @@ def test_category_normalization(raw, expected):
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
-        ("Alipay", PaymentMethod.ALIPAY),
+        ("Dinheiro", PaymentMethod.DINHEIRO),
         ("cartao", PaymentMethod.CARTAO),
-        ("WeChat", PaymentMethod.WECHAT),
         ("pix", PaymentMethod.OUTRO),
         (None, PaymentMethod.OUTRO),
     ],
@@ -123,10 +116,10 @@ def test_payment_method_normalization(raw, expected):
 def test_format_confirmation_exact():
     assert format_confirmation(make()) == (
         "📝 <b>Confirme o gasto:</b>\n"
-        "• Valor: 35.50 CNY\n"
+        "• Valor: 35.50 BRL\n"
         "• Categoria: alimentação\n"
         "• Descrição: almoço\n"
-        "• Pagamento: alipay\n"
+        "• Pagamento: dinheiro\n"
         "• Data: 08/10/2026"
     )
 
@@ -151,17 +144,17 @@ def test_sheet_header():
 
 
 def test_to_sheet_row():
-    recorded_at = datetime(2026, 10, 8, 12, 30, tzinfo=ZoneInfo("Asia/Shanghai"))
+    recorded_at = datetime(2026, 10, 8, 12, 30, tzinfo=ZoneInfo("America/Sao_Paulo"))
     row = to_sheet_row(make(), user="Vini", recorded_at=recorded_at)
     assert row == [
         "2026-10-08",
         "almoço",
         "alimentação",
         35.5,
-        "CNY",
-        "alipay",
+        "BRL",
+        "dinheiro",
         "Vini",
-        "2026-10-08T12:30:00+08:00",
+        "2026-10-08T12:30:00-03:00",
         "gastei 35,5 no almoço",
     ]
     assert isinstance(row[3], float)

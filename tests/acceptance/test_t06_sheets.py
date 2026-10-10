@@ -11,7 +11,7 @@ from app.sheets import SheetsError, SheetsRepository
 
 pytestmark = pytest.mark.task("T06")
 
-RECORDED_AT = datetime(2026, 10, 8, 12, 0, tzinfo=ZoneInfo("Asia/Shanghai"))
+RECORDED_AT = datetime(2026, 10, 8, 12, 0, tzinfo=ZoneInfo("America/Sao_Paulo"))
 
 
 class FakeWorksheet:

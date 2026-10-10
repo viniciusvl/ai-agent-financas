@@ -2,7 +2,7 @@
 
 ## v0.1.0 — 2026-10-09
 
-Primeira versão do bot de gastos da viagem à China (arquitetura v2, issue #23).
+Primeira versão do agente de gastos (arquitetura v2, issue #23).
 
 ### Funcionalidades
 - **Registro de pagamentos por texto ou áudio** (Telegram → Whisper → DeepSeek), com
