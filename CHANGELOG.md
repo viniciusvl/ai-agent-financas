@@ -13,7 +13,7 @@ que lê e grava gastos numa planilha específica do Google Sheets (T18, #56).
 - **Formas de pagamento:** dinheiro, débito, crédito à vista, crédito parcelado, Pix,
   **boleto**, **transferência** (TED/DOC) e outro.
 - Prompts, mensagens, documentação, deploy (`deploy/nginx/ai-agent-financas*.conf`) e casos de
-  avaliação sem nada específico de viagem.
+  avaliação genéricos (gastos pessoais).
 - **Evals** (78 casos gerais, DeepSeek real): rota **100%**, campos **98,6%**.
 
 ## v0.1.0 — 2026-10-09
