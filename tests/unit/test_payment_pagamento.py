@@ -15,11 +15,11 @@ D = Decimal
 def make(**overrides) -> Pagamento:
     """Pagamento válido; sobrescreva campos conforme o teste."""
     data = dict(
-        metodo_pagamento="alipay",
+        metodo_pagamento="pix",
         data=date(2026, 10, 8),
         valor_compra=D("35.50"),
         descricao="almoço",
-        texto_original="almoço 35,5 no alipay",
+        texto_original="almoço 35,5 no pix",
     )
     data.update(overrides)
     return Pagamento(**data)
@@ -42,7 +42,7 @@ def test_normalizacoes_de_campos():
 
 def test_moeda_e_categoria_none_viram_padrao():
     p = make(moeda=None, categoria=None)
-    assert p.moeda is Currency.CNY
+    assert p.moeda is Currency.BRL
     assert p.categoria is Category.OUTROS
 
 
@@ -106,7 +106,9 @@ def test_credito_parcelado_com_quantidade_invalida(n):
         make(metodo_pagamento="credito_parcelado", quant_parcelas=n)
 
 
-@pytest.mark.parametrize("metodo", ["debito", "dinheiro", "pix", "alipay", "wechat_pay", "outro"])
+@pytest.mark.parametrize(
+    "metodo", ["debito", "dinheiro", "pix", "boleto", "transferencia", "outro"]
+)
 def test_outros_metodos_forcam_uma_parcela(metodo):
     p = make(metodo_pagamento=metodo, quant_parcelas=6)
     assert p.quant_parcelas == 1

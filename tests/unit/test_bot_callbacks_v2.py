@@ -14,11 +14,11 @@ OWNER = 111
 
 def pagamento():
     return Pagamento(
-        metodo_pagamento="alipay",
+        metodo_pagamento="pix",
         data=date(2026, 10, 9),
         hora=time(14, 7),
         valor_compra=Decimal("35"),
-        moeda="CNY",
+        moeda="BRL",
         categoria="alimentação",
         descricao="almoço",
     )

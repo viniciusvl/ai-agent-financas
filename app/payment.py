@@ -28,8 +28,8 @@ class MetodoPagamento(StrEnum):
     CREDITO_A_VISTA = "credito_a_vista"
     CREDITO_PARCELADO = "credito_parcelado"
     PIX = "pix"
-    ALIPAY = "alipay"
-    WECHAT_PAY = "wechat_pay"
+    BOLETO = "boleto"
+    TRANSFERENCIA = "transferencia"
     OUTRO = "outro"
 
 
@@ -38,8 +38,8 @@ MAX_PARCELAS = 24
 _CENTAVOS = Decimal("0.01")
 
 # Aliases de método de pagamento. As chaves passam por `_chave_metodo` (minúsculas, sem acento
-# e com espaços/hífens/underscores removidos), então variantes como "wechat pay", "wechat_pay"
-# e "WeChat" caem na mesma chave.
+# e com espaços/hífens/underscores removidos), então variantes como "boleto bancário" e
+# "boleto-bancario" caem na mesma chave.
 _METODO_POR_CHAVE: dict[str, MetodoPagamento] = {
     "dinheiro": MetodoPagamento.DINHEIRO,
     "cash": MetodoPagamento.DINHEIRO,
@@ -53,11 +53,12 @@ _METODO_POR_CHAVE: dict[str, MetodoPagamento] = {
     "parcelado": MetodoPagamento.CREDITO_PARCELADO,
     "creditoparcelado": MetodoPagamento.CREDITO_PARCELADO,
     "pix": MetodoPagamento.PIX,
-    "alipay": MetodoPagamento.ALIPAY,
-    "zhifubao": MetodoPagamento.ALIPAY,
-    "wechat": MetodoPagamento.WECHAT_PAY,
-    "wechatpay": MetodoPagamento.WECHAT_PAY,
-    "weixin": MetodoPagamento.WECHAT_PAY,
+    "boleto": MetodoPagamento.BOLETO,
+    "boletobancario": MetodoPagamento.BOLETO,
+    "transferencia": MetodoPagamento.TRANSFERENCIA,
+    "transferenciabancaria": MetodoPagamento.TRANSFERENCIA,
+    "ted": MetodoPagamento.TRANSFERENCIA,
+    "doc": MetodoPagamento.TRANSFERENCIA,
 }
 
 
@@ -141,7 +142,7 @@ class Pagamento(BaseModel):
     hora: time | None = None
     quant_parcelas: int = 1
     valor_compra: Decimal
-    moeda: Currency = Currency.CNY
+    moeda: Currency = Currency.BRL
     categoria: Category = Category.OUTROS
     descricao: str
     texto_original: str = ""

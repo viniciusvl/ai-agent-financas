@@ -174,8 +174,8 @@ def _payload_full(**overrides) -> str:
     data = {
         "is_pagamento": True,
         "valor_compra": 35,
-        "moeda": "CNY",
-        "metodo_pagamento": "alipay",
+        "moeda": "BRL",
+        "metodo_pagamento": "pix",
         "quant_parcelas": None,
         "categoria": "alimentação",
         "descricao": "almoço",

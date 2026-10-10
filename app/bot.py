@@ -48,8 +48,8 @@ METODO_LABEL: dict[MetodoPagamento, str] = {
     MetodoPagamento.CREDITO_A_VISTA: "crédito à vista",
     MetodoPagamento.CREDITO_PARCELADO: "crédito parcelado",
     MetodoPagamento.PIX: "Pix",
-    MetodoPagamento.ALIPAY: "Alipay",
-    MetodoPagamento.WECHAT_PAY: "WeChat Pay",
+    MetodoPagamento.BOLETO: "boleto",
+    MetodoPagamento.TRANSFERENCIA: "transferência",
     MetodoPagamento.OUTRO: "outro",
 }
 
