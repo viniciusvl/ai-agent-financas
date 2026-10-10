@@ -83,7 +83,7 @@ def test_currency_aliases(raw, expected):
 
 def test_unknown_currency_is_rejected():
     with pytest.raises(ValidationError):
-        make(currency="EUR")
+        make(currency="XYZ")
 
 
 @pytest.mark.parametrize(
@@ -105,7 +105,7 @@ def test_category_normalization(raw, expected):
     [
         ("Dinheiro", PaymentMethod.DINHEIRO),
         ("cartao", PaymentMethod.CARTAO),
-        ("pix", PaymentMethod.OUTRO),
+        ("cheque", PaymentMethod.OUTRO),
         (None, PaymentMethod.OUTRO),
     ],
 )
