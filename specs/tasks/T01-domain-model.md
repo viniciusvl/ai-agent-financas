@@ -23,8 +23,8 @@ e as funções de formatação. Leia `specs/000-produto.md`.
   - `float` deve ser convertido via `str()` (evitar `Decimal(19.99)` impreciso).
   - Quantizar para 2 casas com `ROUND_HALF_UP` (`"12.345"` → `12.35`).
   - Deve ser `> 0`; valores inválidos/vazios/zero/negativos → `ValidationError`.
-- **currency**: case-insensitive, ignorando espaços e acentos. `None` → `CNY`.
-  Aliases: CNY = `cny, rmb, yuan, yuans, kuai, ¥, 元`; BRL = `brl, r$, real, reais`;
+- **currency**: case-insensitive, ignorando espaços e acentos. `None` → `BRL`.
+  Aliases: BRL = `brl, r$, real, reais`; EUR = `eur, €, euro, euros`;
   USD = `usd, us$, $, dolar, dolares, dólar, dólares`. Qualquer outro → `ValidationError`.
 - **category**: case-insensitive e sem acento (`"alimentacao"` → `alimentação`);
   desconhecido ou `None` → `outros`.
@@ -39,10 +39,10 @@ HTML do Telegram, exatamente (descrição com `html.escape`):
 
 ```
 📝 <b>Confirme o gasto:</b>
-• Valor: 35.50 CNY
+• Valor: 35.50 BRL
 • Categoria: alimentação
 • Descrição: almoço
-• Pagamento: alipay
+• Pagamento: dinheiro
 • Data: 08/10/2026
 ```
 

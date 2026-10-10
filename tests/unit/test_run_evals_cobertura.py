@@ -22,11 +22,12 @@ def _casos_com_cobertura() -> list[Caso]:
     """Conjunto mínimo que cumpre exatamente a cobertura exigida."""
     casos: list[Caso] = []
     # 30 escrita: 8 métodos × 2 + crédito parcelado extra (2 já cobertos no par).
+    # A moeda mais frequente (BRL) precisa aparecer >= 10 vezes.
     metodos = list(METODOS_PAGAMENTO)
     for i in range(30):
         metodo = metodos[i % len(metodos)]
         casos.append(
-            _escrita(f"e{i:03d}", valor_compra=10 + i, moeda="CNY", metodo_pagamento=metodo),
+            _escrita(f"e{i:03d}", valor_compra=10 + i, moeda="BRL", metodo_pagamento=metodo),
         )
     # crédito parcelado com parcelas distintas (>= 6 casos, >= 4 valores).
     for i, parcela in enumerate((2, 3, 4, 5, 6, 7)):
@@ -34,21 +35,19 @@ def _casos_com_cobertura() -> list[Caso]:
             _escrita(
                 f"p{i:03d}",
                 valor_compra=100 + i,
-                moeda="CNY",
+                moeda="BRL",
                 metodo_pagamento="credito_parcelado",
                 quant_parcelas=parcela,
             )
         )
-    # moedas que ainda faltam.
+    # moedas que ainda faltam (cada Currency >= 3).
     casos += [
-        _escrita("b1", valor_compra=1, moeda="BRL"),
-        _escrita("b2", valor_compra=2, moeda="BRL"),
-        _escrita("b3", valor_compra=3, moeda="BRL"),
-        _escrita("b4", valor_compra=4, moeda="BRL"),
-        _escrita("b5", valor_compra=5, moeda="BRL"),
         _escrita("u1", valor_compra=6, moeda="USD"),
         _escrita("u2", valor_compra=7, moeda="USD"),
         _escrita("u3", valor_compra=8, moeda="USD"),
+        _escrita("x1", valor_compra=9, moeda="EUR"),
+        _escrita("x2", valor_compra=10, moeda="EUR"),
+        _escrita("x3", valor_compra=11, moeda="EUR"),
     ]
     casos += [Caso(id=f"l{i}", texto="quanto gastei", rota="leitura") for i in range(15)]
     casos += [Caso(id=f"o{i}", texto="oi", rota="outro") for i in range(10)]
@@ -89,9 +88,9 @@ def test_metodo_de_pagamento_insuficiente_e_reportado():
 def test_moeda_insuficiente_e_reportada():
     casos = _casos_com_cobertura()
     for caso in casos:
-        if caso.esperado.get("moeda") == "CNY":
+        if caso.esperado.get("moeda") == "BRL":
             caso.esperado.pop("moeda")
-    with pytest.raises(CasosError, match="CNY"):
+    with pytest.raises(CasosError, match="BRL"):
         verificar_cobertura(casos)
 
 

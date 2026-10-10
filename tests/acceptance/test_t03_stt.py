@@ -25,9 +25,9 @@ def fake_client(result=None, exc=None):
 
 
 async def test_transcribe_returns_stripped_text():
-    client = fake_client("  gastei 35 yuan no almoço \n")
+    client = fake_client("  gastei 35 reais no almoço \n")
     stt = WhisperTranscriber(api_key="k", client=client)
-    assert await stt.transcribe(b"data", filename="voice.ogg") == "gastei 35 yuan no almoço"
+    assert await stt.transcribe(b"data", filename="voice.ogg") == "gastei 35 reais no almoço"
     call = client.audio.transcriptions.calls[0]
     assert call["model"] == "whisper-1"
     assert call["language"] == "pt"

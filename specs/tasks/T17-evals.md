@@ -21,21 +21,20 @@ pelo orquestrador; você valida com `--check` e com os testes.
 ```yaml
 casos:
   - id: e001
-    texto: "paguei 80 kuai no táxi com wechat"
+    texto: "paguei 80 reais no mercado com pix"
     rota: escrita            # escrita | leitura | outro
     esperado:                # só para rota escrita; apenas os campos que se quer conferir
       valor_compra: 80
-      moeda: CNY
-      metodo_pagamento: wechat_pay
+      moeda: BRL
+      metodo_pagamento: pix
       categoria: transporte
 ```
-- **≥ 60 casos**, `id` únicos, textos realistas em PT-BR de uma viagem à China (gírias, kuai,
-  RMB, Alipay, WeChat, erros típicos de transcrição de áudio: sem pontuação, números por
-  extenso como "oitenta yuan").
+- **≥ 60 casos**, `id` únicos, textos realistas em PT-BR de gastos pessoais (gírias, erros
+  típicos de transcrição de áudio: sem pontuação, números por extenso como "oitenta reais").
 - Cobertura mínima (validada por `verificar_cobertura`):
   - ≥ 30 `escrita`, ≥ 15 `leitura`, ≥ 10 `outro`;
   - entre os de escrita com `metodo_pagamento` esperado: cada um dos 8 métodos ≥ 2 vezes;
-  - moedas esperadas: CNY ≥ 10, BRL ≥ 5, USD ≥ 3;
+  - moedas esperadas: cada `Currency` ≥ 3 e a mais frequente ≥ 10;
   - ≥ 6 casos `credito_parcelado` com `quant_parcelas` esperado, com ≥ 4 valores distintos;
   - todo caso `escrita` tem `esperado.valor_compra`.
 

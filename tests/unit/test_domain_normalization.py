@@ -22,27 +22,27 @@ def make(**overrides):
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
-        ("CNY", Currency.CNY),
-        ("  rmb  ", Currency.CNY),
-        ("YUAN", Currency.CNY),
-        ("yuans", Currency.CNY),
-        ("Kuai", Currency.CNY),
-        ("元", Currency.CNY),
-        (None, Currency.CNY),
-        (Currency.USD, Currency.USD),
-        ("r$", Currency.BRL),
+        ("BRL", Currency.BRL),
+        ("  brl  ", Currency.BRL),
+        ("R$", Currency.BRL),
         ("REAL", Currency.BRL),
         ("Reais", Currency.BRL),
+        (None, Currency.BRL),
+        (Currency.USD, Currency.USD),
         ("US$", Currency.USD),
         ("$", Currency.USD),
         ("dólares", Currency.USD),
+        ("EUR", Currency.EUR),
+        ("€", Currency.EUR),
+        ("Euro", Currency.EUR),
+        ("euros", Currency.EUR),
     ],
 )
 def test_currency_aliases(raw, expected):
     assert make(currency=raw).currency == expected
 
 
-@pytest.mark.parametrize("raw", ["EUR", "gbp", "peso", 42, ""])
+@pytest.mark.parametrize("raw", ["gbp", "peso", "chf", 42, ""])
 def test_currency_invalid(raw):
     with pytest.raises(ValidationError):
         make(currency=raw)
@@ -69,10 +69,10 @@ def test_category_normalization(raw, expected):
     [
         ("DINHEIRO", PaymentMethod.DINHEIRO),
         ("Cartao", PaymentMethod.CARTAO),
-        ("wechat", PaymentMethod.WECHAT),
+        ("paypal", PaymentMethod.OUTRO),
         ("outro", PaymentMethod.OUTRO),
-        ("pix", PaymentMethod.OUTRO),
-        (PaymentMethod.ALIPAY, PaymentMethod.ALIPAY),
+        ("pix", PaymentMethod.PIX),
+        (PaymentMethod.CARTAO, PaymentMethod.CARTAO),
         (None, PaymentMethod.OUTRO),
     ],
 )

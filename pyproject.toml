@@ -1,7 +1,7 @@
 [project]
-name = "china-financas-bot"
-version = "0.1.0"
-description = "Bot do Telegram para registrar gastos de viagem em uma planilha do Google Sheets"
+name = "ai-agent-financas"
+version = "0.2.0"
+description = "Agente de IA no Telegram que lê e grava gastos em uma planilha específica do Google Sheets"
 requires-python = ">=3.11"
 
 [tool.pytest.ini_options]

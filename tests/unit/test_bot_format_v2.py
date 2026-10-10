@@ -11,11 +11,11 @@ from app.pending_store import PendingExpense, PendingStore
 
 def pagamento(**kw):
     data = dict(
-        metodo_pagamento="alipay",
+        metodo_pagamento="pix",
         data=date(2026, 10, 9),
         hora=time(14, 7),
         valor_compra=Decimal("35"),
-        moeda="CNY",
+        moeda="BRL",
         categoria="alimentação",
         descricao="almoço",
     )
@@ -24,11 +24,11 @@ def pagamento(**kw):
 
 
 def test_confirmacao_simples_sem_parcelas():
-    text = format_confirmacao(pagamento(metodo_pagamento="wechat_pay"))
+    text = format_confirmacao(pagamento())
     assert text == (
         "📝 <b>Confirme o pagamento:</b>\n"
-        "• Valor: ¥ 35,00\n"
-        "• Pagamento: WeChat Pay\n"
+        "• Valor: R$ 35,00\n"
+        "• Pagamento: Pix\n"
         "• Categoria: alimentação\n"
         "• Descrição: almoço\n"
         "• Data: 09/10/2026 14:07"

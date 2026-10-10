@@ -11,7 +11,7 @@ from app.sheet_schema import Coluna, SchemaError, SheetSchema
 pytestmark = pytest.mark.task("T11")
 
 ROOT = Path(__file__).resolve().parents[2]
-REGISTRADO = datetime(2026, 10, 8, 21, 5, tzinfo=ZoneInfo("Asia/Shanghai"))
+REGISTRADO = datetime(2026, 10, 8, 21, 5, tzinfo=ZoneInfo("America/Sao_Paulo"))
 
 BASE = {
     "aba": "Gastos",
@@ -134,7 +134,7 @@ def test_to_row_formats_each_type():
         33.33,
         "BRL",
         "Vini",
-        "2026-10-08T21:05:00+08:00",
+        "2026-10-08T21:05:00-03:00",
     ]
     assert isinstance(row[6], float) and isinstance(row[5], int)
 

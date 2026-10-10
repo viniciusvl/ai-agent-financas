@@ -49,13 +49,13 @@ def _schema():
 
 
 ROWS = [
-    ["a1", "2026-10-05", "almoço", "alimentação", "alipay", 1, 35, "CNY"],
-    ["a2", "2026-10-06", "táxi", "transporte", "wechat_pay", "1", "80,50", "CNY"],
+    ["a1", "2026-10-05", "almoço", "alimentação", "debito", 1, 35, "USD"],
+    ["a2", "2026-10-06", "táxi", "transporte", "pix", "1", "80,50", "USD"],
     ["a3", "2026-10-06", "tênis", "compras", "credito_parcelado", 3, 300, "BRL"],
     ["", "", "", "", "", "", "", ""],
-    ["a4", "data ruim", "x", "outros", "outro", 1, 10, "CNY"],
-    ["a5", "07/10/2026", "museu", "passeios", "dinheiro", 1.0, "1.234,56", "CNY"],
-    ["a6", "2026-10-07", "valor ruim", "outros", "outro", 1, "abc", "CNY"],
+    ["a4", "data ruim", "x", "outros", "outro", 1, 10, "USD"],
+    ["a5", "07/10/2026", "museu", "passeios", "dinheiro", 1.0, "1.234,56", "USD"],
+    ["a6", "2026-10-07", "valor ruim", "outros", "outro", 1, "abc", "USD"],
     ["a7", "2026-09-20", "mala", "compras", "credito_parcelado", 2, "100.01", "BRL"],
 ]
 
@@ -71,10 +71,10 @@ def _regs():
 @pytest.mark.parametrize(
     ("moeda", "valor", "esperado"),
     [
-        ("CNY", D("1234.56"), "¥ 1.234,56"),
+        ("BRL", D("1234.56"), "R$ 1.234,56"),
         ("BRL", D("0.5"), "R$ 0,50"),
         ("USD", D("1000000"), "US$ 1.000.000,00"),
-        ("EUR", D("3"), "EUR 3,00"),
+        ("XYZ", D("3"), "XYZ 3,00"),
     ],
 )
 def test_format_valor(moeda, valor, esperado):
@@ -82,7 +82,7 @@ def test_format_valor(moeda, valor, esperado):
 
 
 def test_format_totais():
-    assert format_totais({"CNY": D("10"), "BRL": D("2.5")}) == "R$ 2,50 + ¥ 10,00"
+    assert format_totais({"USD": D("10"), "BRL": D("2.5")}) == "R$ 2,50 + US$ 10,00"
     assert format_totais({}) == MSG_NENHUM_GASTO
 
 
@@ -96,9 +96,9 @@ def test_parse_rows_skips_invalid_and_parses_formats(caplog):
     assert regs[1] == Registro(
         data=date(2026, 10, 6),
         valor_compra=D("80.50"),
-        moeda="CNY",
+        moeda="USD",
         categoria="transporte",
-        metodo_pagamento="wechat_pay",
+        metodo_pagamento="pix",
         quant_parcelas=1,
         descricao="táxi",
     )
@@ -123,7 +123,7 @@ def test_parse_rows_with_minimal_schema_uses_defaults():
         schema, [["08/10/2026", "R$ 10,00"], [date(2026, 10, 9), 5], [46304, 7], [46304.75, 8]]
     )
     assert regs[0] == Registro(data=date(2026, 10, 8), valor_compra=D("10.00"))
-    assert regs[1].data == date(2026, 10, 9) and regs[1].moeda == "CNY"
+    assert regs[1].data == date(2026, 10, 9)
     # serial do Sheets: dias desde 1899-12-30 (46304 == 2026-10-09; fração = hora)
     assert regs[2].data == date(2026, 10, 9)
     assert regs[3].data == date(2026, 10, 9)
@@ -134,7 +134,7 @@ def test_parse_rows_with_minimal_schema_uses_defaults():
 
 def test_total_periodo_inclusive_by_currency():
     assert total_periodo(_regs(), date(2026, 10, 5), date(2026, 10, 6)) == {
-        "CNY": D("115.50"),
+        "USD": D("115.50"),
         "BRL": D("300.00"),
     }
     assert total_periodo(_regs(), date(2026, 1, 1), date(2026, 1, 2)) == {}
@@ -143,10 +143,10 @@ def test_total_periodo_inclusive_by_currency():
 def test_total_por_categoria_e_metodo():
     inicio, fim = date(2026, 10, 1), date(2026, 10, 31)
     assert total_por_categoria(_regs(), inicio, fim) == {
-        "alimentação": {"CNY": D("35.00")},
-        "transporte": {"CNY": D("80.50")},
+        "alimentação": {"USD": D("35.00")},
+        "transporte": {"USD": D("80.50")},
         "compras": {"BRL": D("300.00")},
-        "passeios": {"CNY": D("1234.56")},
+        "passeios": {"USD": D("1234.56")},
     }
     assert total_por_metodo(_regs(), inicio, fim)["credito_parcelado"] == {"BRL": D("300.00")}
 
@@ -215,7 +215,7 @@ def test_repository_errors():
 
 # --- ReadAgent ----------------------------------------------------------------------------------
 
-AGORA = datetime(2026, 10, 8, 23, 30, tzinfo=ZoneInfo("UTC"))  # 09/10 (sexta) em Xangai
+AGORA = datetime(2026, 10, 9, 15, 0, tzinfo=ZoneInfo("UTC"))  # 09/10 (sexta), 12h em SP
 
 
 class FakeRepo:
@@ -253,7 +253,10 @@ class FakeCompletions:
 def agent(repo=None, **kw):
     completions = FakeCompletions(**kw)
     client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
-    return ReadAgent(api_key="k", repo=repo or FakeRepo(), client=client), completions
+    agente = ReadAgent(
+        api_key="k", repo=repo or FakeRepo(), client=client, timezone="America/Sao_Paulo"
+    )
+    return agente, completions
 
 
 def test_tools_definition():
@@ -292,14 +295,14 @@ async def test_request_parameters():
 async def test_total_periodo_answer():
     ag, _ = agent(tool="total_periodo", args={"inicio": "2026-10-06", "fim": "2026-10-05"})
     assert (
-        await ag.answer("?", AGORA) == "💰 Total de 05/10/2026 a 06/10/2026: R$ 300,00 + ¥ 115,50"
+        await ag.answer("?", AGORA) == "💰 Total de 05/10/2026 a 06/10/2026: R$ 300,00 + US$ 115,50"
     )
 
 
 async def test_total_por_categoria_answer():
     ag, _ = agent(tool="total_por_categoria", args={"inicio": "2026-10-05", "fim": "2026-10-05"})
     assert await ag.answer("?", AGORA) == (
-        "📊 Gastos por categoria de 05/10/2026 a 05/10/2026:\n• alimentação: ¥ 35,00"
+        "📊 Gastos por categoria de 05/10/2026 a 05/10/2026:\n• alimentação: US$ 35,00"
     )
     ag, _ = agent(tool="total_por_categoria", args={"inicio": "2025-01-01", "fim": "2025-01-02"})
     assert await ag.answer("?", AGORA) == (
@@ -312,14 +315,14 @@ async def test_total_por_metodo_answer():
     assert await ag.answer("?", AGORA) == (
         "💳 Gastos por forma de pagamento de 06/10/2026 a 06/10/2026:\n"
         "• credito_parcelado: R$ 300,00\n"
-        "• wechat_pay: ¥ 80,50"
+        "• pix: US$ 80,50"
     )
 
 
 async def test_ultimos_answer_and_limits():
     ag, _ = agent(tool="ultimos_gastos", args={"n": 2})
     assert await ag.answer("?", AGORA) == (
-        "🧾 Últimos gastos:\n• 07/10 — museu — ¥ 1.234,56\n• 06/10 — tênis — R$ 300,00"
+        "🧾 Últimos gastos:\n• 07/10 — museu — US$ 1.234,56\n• 06/10 — tênis — R$ 300,00"
     )
     ag, _ = agent(tool="ultimos_gastos", args={})
     assert (await ag.answer("?", AGORA)).count("\n•") == 5
@@ -354,7 +357,7 @@ async def test_parcelas_futuras_answer():
 )
 async def test_unsupported_or_malformed(kw):
     ag, _ = agent(**kw)
-    assert await ag.answer("qual a capital da China?", AGORA) == MSG_LEITURA_NAO_SUPORTADA
+    assert await ag.answer("qual a capital da França?", AGORA) == MSG_LEITURA_NAO_SUPORTADA
 
 
 async def test_llm_error_raises_read_error():

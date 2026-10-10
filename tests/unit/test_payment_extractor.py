@@ -16,7 +16,7 @@ from app.prompts import PAYMENT_EXTRACTION_SYSTEM_PROMPT
 from app.sheet_schema import SheetSchema
 
 RECEBIDO = datetime(2026, 10, 8, 22, 30, 41, tzinfo=ZoneInfo("UTC"))
-TEXTO = "almoço 35 kuai alipay"
+TEXTO = "almoço 35 reais no pix"
 
 
 @pytest.fixture
@@ -74,12 +74,12 @@ def test_default_client_is_async_openai(schema):
 
 def test_build_messages_formats_prompt_in_message_timezone(schema):
     extractor, _ = _make(schema, default_currency="BRL")
-    local = RECEBIDO.astimezone(ZoneInfo("Asia/Shanghai"))
+    local = RECEBIDO.astimezone(ZoneInfo("America/Sao_Paulo"))
     system, user = extractor._build_messages(TEXTO, local)
     assert system["role"] == "system"
     assert system["content"] == PAYMENT_EXTRACTION_SYSTEM_PROMPT.format(
-        agora="06:30",
-        hoje="2026-10-09",
+        agora="19:30",
+        hoje="2026-10-08",
         moeda_padrao="BRL",
         schema=schema.prompt_context(),
     )
@@ -94,9 +94,9 @@ async def test_request_parameters_and_timezone(schema):
     assert call["temperature"] == 0
     assert call["response_format"] == {"type": "json_object"}
     assert call["messages"][1] == {"role": "user", "content": TEXTO}
-    # 22:30 UTC vira 06:30 em Xangai no dia seguinte.
-    assert "06:30" in call["messages"][0]["content"]
-    assert "2026-10-09" in call["messages"][0]["content"]
+    # 22:30 UTC vira 19:30 em São Paulo, no mesmo dia.
+    assert "19:30" in call["messages"][0]["content"]
+    assert "2026-10-08" in call["messages"][0]["content"]
 
 
 @pytest.mark.parametrize("texto", ["", "   ", "\n\t"])
@@ -174,8 +174,8 @@ def _payload_full(**overrides) -> str:
     data = {
         "is_pagamento": True,
         "valor_compra": 35,
-        "moeda": "CNY",
-        "metodo_pagamento": "alipay",
+        "moeda": "BRL",
+        "metodo_pagamento": "pix",
         "quant_parcelas": None,
         "categoria": "alimentação",
         "descricao": "almoço",
@@ -250,12 +250,12 @@ async def test_invalid_date_and_time_fall_back_to_message(schema):
     extractor, _ = _make(schema, content=_payload_full(data="ontem", hora="25:99"))
     pagamento = (await extractor.extract(TEXTO, RECEBIDO)).pagamento
     assert pagamento is not None
-    assert pagamento.data == date(2026, 10, 9)
-    assert pagamento.hora == time(6, 30)
+    assert pagamento.data == date(2026, 10, 8)
+    assert pagamento.hora == time(19, 30)
 
 
 async def test_missing_description_uses_text(schema):
-    texto = "  80 kuai " + "x" * 100
+    texto = "  80 reais " + "x" * 100
     extractor, _ = _make(schema, content=_payload_full(descricao="   "))
     pagamento = (await extractor.extract(texto, RECEBIDO)).pagamento
     assert pagamento is not None

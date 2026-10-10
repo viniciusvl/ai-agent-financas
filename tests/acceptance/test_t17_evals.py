@@ -8,7 +8,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from app.payment import Pagamento
+from app.domain import Currency
+from app.payment import MetodoPagamento, Pagamento
 from app.payment_extractor import ResultadoExtracao
 from app.router import Intencao, Rota
 from tools.run_evals import (
@@ -40,19 +41,12 @@ def test_repo_cases_load_and_cover():
     rotas = Counter(c.rota for c in casos)
     assert rotas["escrita"] >= 30 and rotas["leitura"] >= 15 and rotas["outro"] >= 10
     metodos = Counter(c.esperado.get("metodo_pagamento") for c in casos if c.rota == "escrita")
-    for metodo in (
-        "dinheiro",
-        "debito",
-        "credito_a_vista",
-        "credito_parcelado",
-        "pix",
-        "alipay",
-        "wechat_pay",
-        "outro",
-    ):
-        assert metodos[metodo] >= 2, metodo
-    moedas = Counter(c.esperado.get("moeda") for c in casos)
-    assert moedas["CNY"] >= 10 and moedas["BRL"] >= 5 and moedas["USD"] >= 3
+    for metodo in MetodoPagamento:
+        assert metodos[metodo.value] >= 2, metodo
+    moedas = Counter(c.esperado.get("moeda") for c in casos if c.esperado.get("moeda"))
+    for moeda in Currency:
+        assert moedas[moeda.value] >= 3, moeda
+    assert moedas.most_common(1)[0][1] >= 10
     parcelas = [
         c.esperado["quant_parcelas"]
         for c in casos
@@ -95,7 +89,7 @@ def write(tmp_path, body):
         ('casos:\n  - {id: x2, texto: "", rota: outro}\n', "x2"),
         ('casos:\n  - {id: x3, texto: "a", rota: comprar}\n', "x3"),
         ('casos:\n  - {id: x4, texto: "a", rota: escrita, esperado: {cor: azul}}\n', "x4"),
-        ('casos:\n  - {id: x5, texto: "a", rota: leitura, esperado: {moeda: CNY}}\n', "x5"),
+        ('casos:\n  - {id: x5, texto: "a", rota: leitura, esperado: {moeda: BRL}}\n', "x5"),
     ],
 )
 def test_load_casos_validation(tmp_path, body, fragment):
@@ -139,14 +133,14 @@ class FakeExtractor:
 
 
 def pag(**kw):
-    data = dict(data=date(2026, 10, 9), descricao="x", valor_compra=Decimal("80"), moeda="CNY")
+    data = dict(data=date(2026, 10, 9), descricao="x", valor_compra=Decimal("80"), moeda="BRL")
     data.update(kw)
     return Pagamento(**data)
 
 
 async def test_avaliar_metrics():
     casos = [
-        Caso("c1", "taxi 80", "escrita", {"valor_compra": 80, "moeda": "CNY"}),
+        Caso("c1", "taxi 80", "escrita", {"valor_compra": 80, "moeda": "BRL"}),
         Caso(
             "c2",
             "celular 10x",

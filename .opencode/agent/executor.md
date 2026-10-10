@@ -1,5 +1,5 @@
 ---
-description: Executor de tasks spec-driven do china-financas-bot. Executa UMA subtarefa por sessão, valida, commita, atualiza o status e encerra.
+description: Executor de tasks spec-driven do ai-agent-financas. Executa UMA subtarefa por sessão, valida, commita, atualiza o status e encerra.
 mode: primary
 model: deepseek/deepseek-flash
 temperature: 0.1

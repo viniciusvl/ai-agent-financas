@@ -31,7 +31,7 @@ def test_all_specs_are_valid(task_id):
 def test_scope_rules():
     spec = load_spec("T09")
     assert in_scope(spec, "Dockerfile")
-    assert in_scope(spec, "deploy/nginx/china-financas-bot.conf")
+    assert in_scope(spec, "deploy/nginx/ai-agent-financas.conf")
     assert in_scope(spec, "tests/unit/test_x.py")
     assert in_scope(spec, ".agent/state/T09.md")
     assert not in_scope(spec, ".agent/state/T01.md")

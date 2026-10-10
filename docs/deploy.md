@@ -1,4 +1,4 @@
-# Deploy do China Finanças Bot na EC2
+# Deploy do ai-agent-financas na EC2
 
 Passo a passo para colocar o bot em produção numa instância **EC2 (Ubuntu)** com
 **Docker**, **Nginx** terminando o TLS (Let's Encrypt/`certbot`) e o webhook do
@@ -27,8 +27,8 @@ domínio real do bot.
 4. Clone o repositório; a produção acompanha a branch `main`:
 
    ```bash
-   git clone <url-do-repositorio> china-financas-bot
-   cd china-financas-bot
+   git clone <url-do-repositorio> ai-agent-financas
+   cd ai-agent-financas
    git checkout main
    ```
 
@@ -87,16 +87,16 @@ depois a config completa com TLS.
    ```
 
 2. **Fase 1 — config somente HTTP (porta 80).** Habilite
-   `china-financas-bot.http-only.conf`, que serve `/.well-known/acme-challenge/`
+   `ai-agent-financas.http-only.conf`, que serve `/.well-known/acme-challenge/`
    para o desafio, ajuste o domínio, valide e suba o Nginx:
 
    ```bash
-   sudo cp deploy/nginx/china-financas-bot.http-only.conf \
-     /etc/nginx/sites-available/china-financas-bot.conf
+   sudo cp deploy/nginx/ai-agent-financas.http-only.conf \
+     /etc/nginx/sites-available/ai-agent-financas.conf
    sudo sed -i 's/bot.SEU-DOMINIO.com/SEU-DOMINIO-REAL.com/g' \
-     /etc/nginx/sites-available/china-financas-bot.conf
-   sudo ln -sf /etc/nginx/sites-available/china-financas-bot.conf \
-     /etc/nginx/sites-enabled/china-financas-bot.conf
+     /etc/nginx/sites-available/ai-agent-financas.conf
+   sudo ln -sf /etc/nginx/sites-available/ai-agent-financas.conf \
+     /etc/nginx/sites-enabled/ai-agent-financas.conf
    sudo rm -f /etc/nginx/sites-enabled/default
    sudo nginx -t
    sudo systemctl reload nginx
@@ -116,10 +116,10 @@ depois a config completa com TLS.
    substitua a config e recarregue:
 
    ```bash
-   sudo cp deploy/nginx/china-financas-bot.conf \
-     /etc/nginx/sites-available/china-financas-bot.conf
+   sudo cp deploy/nginx/ai-agent-financas.conf \
+     /etc/nginx/sites-available/ai-agent-financas.conf
    sudo sed -i 's/bot.SEU-DOMINIO.com/SEU-DOMINIO-REAL.com/g' \
-     /etc/nginx/sites-available/china-financas-bot.conf
+     /etc/nginx/sites-available/ai-agent-financas.conf
    sudo nginx -t
    sudo systemctl reload nginx
    ```
@@ -195,8 +195,8 @@ GOOGLE_SERVICE_ACCOUNT_FILE=secrets/google-service-account.json
 GOOGLE_SHEET_ID=...
 
 # App
-TIMEZONE=Asia/Shanghai
-DEFAULT_CURRENCY=CNY
+TIMEZONE=America/Sao_Paulo
+DEFAULT_CURRENCY=BRL
 DB_PATH=data/bot.db
 PENDING_TTL_SECONDS=86400
 LOG_LEVEL=INFO
@@ -234,7 +234,7 @@ curl -s "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/getWebhookInfo"
 Para publicar uma nova versão:
 
 ```bash
-cd china-financas-bot
+cd ai-agent-financas
 git pull
 docker compose up -d --build
 docker compose logs -f bot

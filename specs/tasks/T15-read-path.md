@@ -20,7 +20,7 @@ textos: `app/messages.py` (`MSG_LEITURA_NAO_SUPORTADA`, `MSG_NENHUM_GASTO`,
 ## Requisitos — `app/queries.py` (puro)
 
 - `format_valor(moeda, valor)`: 2 casas, milhar com `.` e decimal com `,`; prefixos
-  `CNY`→`¥ `, `BRL`→`R$ `, `USD`→`US$ `, outras → `"<MOEDA> "`. Ex.: `¥ 1.234,56`, `R$ 0,50`.
+  `BRL`→`R$ `, `USD`→`US$ `, `EUR`→`€ `, outras → `"<MOEDA> "`. Ex.: `R$ 1.234,56`, `€ 0,50`.
 - `format_totais(totais)`: moedas em ordem alfabética, `format_valor` unidos por `" + "`;
   vazio → `MSG_NENHUM_GASTO`.
 - `parse_rows(schema, rows)`: `rows` são as linhas **sem** o cabeçalho. Para cada linha, pega as
@@ -29,8 +29,8 @@ textos: `app/messages.py` (`MSG_LEITURA_NAO_SUPORTADA`, `MSG_NENHUM_GASTO`,
     *serial* do Sheets → `date(1899, 12, 30) + timedelta(days=int(valor))`; string tentada com
     o `formato` da coluna, depois `%Y-%m-%d`, depois `%d/%m/%Y`.
   - `valor_compra` (obrigatório): número ou string (aceita `1.234,56`, `1234.56`, `R$ 10,00`,
-    `¥ 35`); > 0.
-  - `moeda` (padrão `CNY`), `categoria` (`outros`), `metodo_pagamento` (`outro`),
+    `US$ 35`); > 0.
+  - `moeda` (padrão `BRL`), `categoria` (`outros`), `metodo_pagamento` (`outro`),
     `quant_parcelas` (1; inteiro, aceita `"3"`/`3.0`), `descricao` (`""`).
   - Linha vazia, data ou valor inválidos → **ignorada** (log WARNING com o número da linha).
   - Colunas ausentes no schema → valores padrão.

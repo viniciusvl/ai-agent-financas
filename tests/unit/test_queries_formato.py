@@ -31,7 +31,7 @@ SCHEMA = SheetSchema.from_dict(
 @pytest.mark.parametrize(
     ("moeda", "valor", "esperado"),
     [
-        ("CNY", D("0"), "¥ 0,00"),
+        ("EUR", D("0"), "€ 0,00"),
         ("BRL", D("1234567.8"), "R$ 1.234.567,80"),
         ("USD", D("0.01"), "US$ 0,01"),
         ("JPY", D("42"), "JPY 42,00"),
@@ -42,24 +42,24 @@ def test_format_valor(moeda, valor, esperado):
 
 
 def test_format_totais_ordena_por_moeda():
-    assert format_totais({"USD": D("1"), "CNY": D("2"), "BRL": D("3")}) == (
-        "R$ 3,00 + ¥ 2,00 + US$ 1,00"
+    assert format_totais({"USD": D("1"), "EUR": D("2"), "BRL": D("3")}) == (
+        "R$ 3,00 + € 2,00 + US$ 1,00"
     )
     assert format_totais({}) == MSG_NENHUM_GASTO
 
 
 def test_parse_rows_aceita_simbolos_e_formatos():
     rows = [
-        ["08/10/2026", "almoço", "alimentação", "alipay", "2", "¥ 1.234,56", "CNY"],
+        ["08/10/2026", "almoço", "alimentação", "pix", "2", "€ 1.234,56", "EUR"],
         [datetime(2026, 10, 9, 12, 0), "café", "alimentação", "dinheiro", 1.0, "R$ 10,00", "BRL"],
     ]
     regs = parse_rows(SCHEMA, rows)
     assert regs[0] == Registro(
         data=date(2026, 10, 8),
         valor_compra=D("1234.56"),
-        moeda="CNY",
+        moeda="EUR",
         categoria="alimentação",
-        metodo_pagamento="alipay",
+        metodo_pagamento="pix",
         quant_parcelas=2,
         descricao="almoço",
     )
@@ -70,15 +70,15 @@ def test_parse_rows_aceita_simbolos_e_formatos():
 
 def test_parse_rows_data_numerica_e_serial_do_sheets():
     # serial do Sheets: dias desde 1899-12-30 (46304 == 2026-10-09); fração = hora
-    regs = parse_rows(SCHEMA, [[46304, "ok", "outros", "outro", 1, 10, "CNY"]])
+    regs = parse_rows(SCHEMA, [[46304, "ok", "outros", "outro", 1, 10, "EUR"]])
     assert regs[0].data == date(2026, 10, 9)
-    regs = parse_rows(SCHEMA, [[46304.75, "ok", "outros", "outro", 1, 10, "CNY"]])
+    regs = parse_rows(SCHEMA, [[46304.75, "ok", "outros", "outro", 1, 10, "EUR"]])
     assert regs[0].data == date(2026, 10, 9)
 
 
 def test_parse_rows_data_booleana_ignorada(caplog):
     caplog.set_level(logging.WARNING)
-    assert parse_rows(SCHEMA, [[True, "ok", "outros", "outro", 1, 10, "CNY"]]) == []
+    assert parse_rows(SCHEMA, [[True, "ok", "outros", "outro", 1, 10, "EUR"]]) == []
     assert caplog.records
 
 
@@ -100,15 +100,15 @@ def test_parse_rows_linha_curta_usa_padroes():
     (reg,) = parse_rows(SCHEMA, [["2026-10-08", "curta", "outros", "outro", 1, 35]])
     assert reg.descricao == "curta"
     assert reg.valor_compra == D("35.00")
-    assert reg.moeda == "CNY"
+    assert reg.moeda == "BRL"
 
 
 @pytest.mark.parametrize(
     "row",
     [
-        ["2026-10-08", "ok", "outros", "outro", 1, 0, "CNY"],
-        ["2026-10-08", "ok", "outros", "outro", 1, "-5", "CNY"],
-        ["2026-10-08", "ok", "outros", "outro", 1, "sem numero", "CNY"],
+        ["2026-10-08", "ok", "outros", "outro", 1, 0, "EUR"],
+        ["2026-10-08", "ok", "outros", "outro", 1, "-5", "EUR"],
+        ["2026-10-08", "ok", "outros", "outro", 1, "sem numero", "EUR"],
     ],
 )
 def test_parse_rows_ignora_valor_invalido(row, caplog):
@@ -118,5 +118,5 @@ def test_parse_rows_ignora_valor_invalido(row, caplog):
 
 
 def test_parse_rows_parcelas_invalidas_viram_1():
-    (reg,) = parse_rows(SCHEMA, [["2026-10-08", "x", "outros", "outro", "abc", 5, "CNY"]])
+    (reg,) = parse_rows(SCHEMA, [["2026-10-08", "x", "outros", "outro", "abc", 5, "EUR"]])
     assert reg.quant_parcelas == 1
