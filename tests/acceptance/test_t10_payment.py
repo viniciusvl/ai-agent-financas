@@ -79,7 +79,7 @@ def test_calcular_parcelas_quantidade_invalida(n):
         ("crédito à vista", MetodoPagamento.CREDITO_A_VISTA),
         ("parcelado", MetodoPagamento.CREDITO_PARCELADO),
         ("PIX", MetodoPagamento.PIX),
-        ("boleto", MetodoPagamento.OUTRO),
+        ("cheque", MetodoPagamento.OUTRO),
         (None, MetodoPagamento.OUTRO),
     ],
 )

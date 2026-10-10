@@ -74,7 +74,7 @@ def _regs():
         ("BRL", D("1234.56"), "R$ 1.234,56"),
         ("BRL", D("0.5"), "R$ 0,50"),
         ("USD", D("1000000"), "US$ 1.000.000,00"),
-        ("EUR", D("3"), "EUR 3,00"),
+        ("XYZ", D("3"), "XYZ 3,00"),
     ],
 )
 def test_format_valor(moeda, valor, esperado):
