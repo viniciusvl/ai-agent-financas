@@ -13,7 +13,7 @@ from app.prompts import READ_AGENT_SYSTEM_PROMPT
 from app.queries import ReadError
 from app.read_agent import TOOLS, ReadAgent
 
-AGORA = datetime(2026, 10, 8, 23, 30, tzinfo=ZoneInfo("UTC"))  # 09/10 (sexta) em Xangai
+AGORA = datetime(2026, 10, 8, 23, 30, tzinfo=ZoneInfo("UTC"))  # 08/10 (quinta) em São Paulo
 
 
 class FakeRepo:
@@ -81,7 +81,9 @@ async def test_answer_envia_parametros_esperados():
     assert call["messages"] == [
         {
             "role": "system",
-            "content": READ_AGENT_SYSTEM_PROMPT.format(hoje="2026-10-09", dia_semana="sexta-feira"),
+            "content": READ_AGENT_SYSTEM_PROMPT.format(
+                hoje="2026-10-08", dia_semana="quinta-feira"
+            ),
         },
         {"role": "user", "content": "quanto gastei?"},
     ]

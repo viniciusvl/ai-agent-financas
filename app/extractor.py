@@ -43,7 +43,7 @@ class ExpenseExtractor:
         api_key: str,
         model: str = "deepseek-flash",
         base_url: str = "https://api.deepseek.com",
-        default_currency: str = "CNY",
+        default_currency: str = "BRL",
         client: Any | None = None,
     ) -> None:
         # `client` permite injetar um fake nos testes; em produção, openai.AsyncOpenAI.

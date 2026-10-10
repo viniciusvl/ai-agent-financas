@@ -109,7 +109,7 @@ def create_app(settings: Settings | None = None, service: UpdateHandler | None =
             if service is None:
                 await _close_handler(handler)
 
-    app = FastAPI(title="china-financas-bot", lifespan=lifespan)
+    app = FastAPI(title="ai-agent-financas", lifespan=lifespan)
 
     seen_update_ids: set[int] = set()
     recent_update_ids: deque[int] = deque(maxlen=MAX_SEEN_UPDATE_IDS)

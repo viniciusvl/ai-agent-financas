@@ -114,7 +114,7 @@ class BotService:
         store: Any,
         writer: Any,
         allowed_user_ids: set[int],
-        timezone: str = "Asia/Shanghai",
+        timezone: str = "America/Sao_Paulo",
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.telegram = telegram

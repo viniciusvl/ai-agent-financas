@@ -56,8 +56,8 @@ class PaymentExtractor:
         schema: SheetSchema,
         model: str = "deepseek-flash",
         base_url: str = "https://api.deepseek.com",
-        default_currency: str = "CNY",
-        timezone: str = "Asia/Shanghai",
+        default_currency: str = "BRL",
+        timezone: str = "America/Sao_Paulo",
         client: Any | None = None,
     ) -> None:
         # `client` permite injetar um fake nos testes; em produção, openai.AsyncOpenAI.

@@ -31,7 +31,7 @@ SCHEMA = SheetSchema.from_dict(
 @pytest.mark.parametrize(
     ("moeda", "valor", "esperado"),
     [
-        ("CNY", D("0"), "¥ 0,00"),
+        ("EUR", D("0"), "€ 0,00"),
         ("BRL", D("1234567.8"), "R$ 1.234.567,80"),
         ("USD", D("0.01"), "US$ 0,01"),
         ("JPY", D("42"), "JPY 42,00"),
@@ -42,8 +42,8 @@ def test_format_valor(moeda, valor, esperado):
 
 
 def test_format_totais_ordena_por_moeda():
-    assert format_totais({"USD": D("1"), "CNY": D("2"), "BRL": D("3")}) == (
-        "R$ 3,00 + ¥ 2,00 + US$ 1,00"
+    assert format_totais({"USD": D("1"), "EUR": D("2"), "BRL": D("3")}) == (
+        "R$ 3,00 + € 2,00 + US$ 1,00"
     )
     assert format_totais({}) == MSG_NENHUM_GASTO
 
@@ -100,7 +100,7 @@ def test_parse_rows_linha_curta_usa_padroes():
     (reg,) = parse_rows(SCHEMA, [["2026-10-08", "curta", "outros", "outro", 1, 35]])
     assert reg.descricao == "curta"
     assert reg.valor_compra == D("35.00")
-    assert reg.moeda == "CNY"
+    assert reg.moeda == "BRL"
 
 
 @pytest.mark.parametrize(

@@ -94,9 +94,9 @@ async def test_request_parameters_and_timezone(schema):
     assert call["temperature"] == 0
     assert call["response_format"] == {"type": "json_object"}
     assert call["messages"][1] == {"role": "user", "content": TEXTO}
-    # 22:30 UTC vira 06:30 em Xangai no dia seguinte.
-    assert "06:30" in call["messages"][0]["content"]
-    assert "2026-10-09" in call["messages"][0]["content"]
+    # 22:30 UTC vira 19:30 em São Paulo, no mesmo dia.
+    assert "19:30" in call["messages"][0]["content"]
+    assert "2026-10-08" in call["messages"][0]["content"]
 
 
 @pytest.mark.parametrize("texto", ["", "   ", "\n\t"])
@@ -250,8 +250,8 @@ async def test_invalid_date_and_time_fall_back_to_message(schema):
     extractor, _ = _make(schema, content=_payload_full(data="ontem", hora="25:99"))
     pagamento = (await extractor.extract(TEXTO, RECEBIDO)).pagamento
     assert pagamento is not None
-    assert pagamento.data == date(2026, 10, 9)
-    assert pagamento.hora == time(6, 30)
+    assert pagamento.data == date(2026, 10, 8)
+    assert pagamento.hora == time(19, 30)
 
 
 async def test_missing_description_uses_text(schema):
