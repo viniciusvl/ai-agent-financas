@@ -221,9 +221,24 @@ def _agrupar_por(registros: list[Registro], campo: str) -> dict[str, Totais]:
     return grupos
 
 
-def total_periodo(registros: list[Registro], inicio: date, fim: date) -> Totais:
-    """Total gasto no período (inclusivo), por moeda."""
-    return _somar_por_moeda(_no_periodo(registros, inicio, fim))
+def total_periodo(
+    registros: list[Registro],
+    inicio: date,
+    fim: date,
+    categoria: str | None = None,
+    metodo_pagamento: str | None = None,
+) -> Totais:
+    """Total gasto no período (inclusivo), por moeda, com filtros opcionais.
+
+    `categoria` e `metodo_pagamento`, quando informados, restringem os registros
+    considerados; sem filtros o resultado é o total de todo o período.
+    """
+    filtrados = _no_periodo(registros, inicio, fim)
+    if categoria is not None:
+        filtrados = [reg for reg in filtrados if reg.categoria == categoria]
+    if metodo_pagamento is not None:
+        filtrados = [reg for reg in filtrados if reg.metodo_pagamento == metodo_pagamento]
+    return _somar_por_moeda(filtrados)
 
 
 def total_por_categoria(registros: list[Registro], inicio: date, fim: date) -> dict[str, Totais]:
