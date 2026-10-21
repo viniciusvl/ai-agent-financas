@@ -50,6 +50,16 @@ def test_total_periodo_e_inclusivo_por_moeda():
     assert total_periodo(REGS, date(2026, 1, 1), date(2026, 1, 2)) == {}
 
 
+def test_total_periodo_com_filtros_opcionais():
+    inicio, fim = date(2026, 10, 1), date(2026, 10, 31)
+    assert total_periodo(REGS, inicio, fim, categoria="compras") == {"BRL": D("300.00")}
+    assert total_periodo(REGS, inicio, fim, metodo_pagamento="pix") == {"EUR": D("35.00")}
+    assert total_periodo(REGS, inicio, fim, categoria="compras", metodo_pagamento="pix") == {}
+    assert total_periodo(REGS, inicio, fim, categoria="inexistente") == {}
+    # Sem filtros o comportamento antigo é preservado.
+    assert total_periodo(REGS, inicio, fim) == {"EUR": D("115.50"), "BRL": D("300.00")}
+
+
 def test_total_por_categoria_e_metodo():
     cats = total_por_categoria(REGS, date(2026, 10, 1), date(2026, 10, 31))
     assert cats["transporte"] == {"EUR": D("80.50")}

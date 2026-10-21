@@ -11,7 +11,9 @@ from zoneinfo import ZoneInfo
 
 from openai import AsyncOpenAI
 
+from app.domain import Category
 from app.messages import MSG_LEITURA_NAO_SUPORTADA, MSG_NENHUM_GASTO, MSG_NENHUMA_PARCELA
+from app.payment import MetodoPagamento
 from app.prompts import READ_AGENT_SYSTEM_PROMPT
 from app.queries import (
     GastosRepository,
@@ -54,9 +56,38 @@ _FERRAMENTAS = frozenset(
 # Ferramentas que exigem `inicio` e `fim` (datas no formato YYYY-MM-DD).
 _FERRAMENTAS_PERIODO = frozenset({"total_periodo", "total_por_categoria", "total_por_metodo"})
 
+# Valores aceitos nos filtros opcionais de `total_periodo`, na ordem dos enums.
+_CATEGORIAS = tuple(categoria.value for categoria in Category)
+_METODOS_PAGAMENTO = tuple(metodo.value for metodo in MetodoPagamento)
 
-def _ferramenta_periodo(nome: str, descricao: str) -> dict[str, Any]:
-    """Monta a definição (formato OpenAI) de uma ferramenta com período `inicio`/`fim`."""
+
+def _ferramenta_periodo(nome: str, descricao: str, com_filtros: bool = False) -> dict[str, Any]:
+    """Monta a definição (formato OpenAI) de uma ferramenta com período `inicio`/`fim`.
+
+    Com `com_filtros`, acrescenta as propriedades opcionais `categoria` e
+    `metodo_pagamento` (valores dos enums correspondentes).
+    """
+    propriedades: dict[str, Any] = {
+        "inicio": {
+            "type": "string",
+            "description": "Data inicial do período, inclusive, no formato YYYY-MM-DD.",
+        },
+        "fim": {
+            "type": "string",
+            "description": "Data final do período, inclusive, no formato YYYY-MM-DD.",
+        },
+    }
+    if com_filtros:
+        propriedades["categoria"] = {
+            "type": "string",
+            "enum": list(_CATEGORIAS),
+            "description": "Filtra por categoria (opcional).",
+        }
+        propriedades["metodo_pagamento"] = {
+            "type": "string",
+            "enum": list(_METODOS_PAGAMENTO),
+            "description": "Filtra por forma de pagamento (opcional).",
+        }
     return {
         "type": "function",
         "function": {
@@ -64,16 +95,7 @@ def _ferramenta_periodo(nome: str, descricao: str) -> dict[str, Any]:
             "description": descricao,
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "inicio": {
-                        "type": "string",
-                        "description": "Data inicial do período, inclusive, no formato YYYY-MM-DD.",
-                    },
-                    "fim": {
-                        "type": "string",
-                        "description": "Data final do período, inclusive, no formato YYYY-MM-DD.",
-                    },
-                },
+                "properties": propriedades,
                 "required": ["inicio", "fim"],
                 "additionalProperties": False,
             },
@@ -82,7 +104,12 @@ def _ferramenta_periodo(nome: str, descricao: str) -> dict[str, Any]:
 
 
 TOOLS: list[dict[str, Any]] = [
-    _ferramenta_periodo("total_periodo", "Soma total gasta em um período, por moeda."),
+    _ferramenta_periodo(
+        "total_periodo",
+        "Soma total gasta em um período, por moeda, com filtros opcionais de categoria "
+        "e forma de pagamento.",
+        com_filtros=True,
+    ),
     _ferramenta_periodo("total_por_categoria", "Soma gasta por categoria em um período."),
     _ferramenta_periodo("total_por_metodo", "Soma gasta por forma de pagamento em um período."),
     {
@@ -151,6 +178,25 @@ def _parse_n_arg(valor: Any) -> int:
     raise _ChamadaInvalida(f"n inválido: {valor!r}")
 
 
+def _parse_filtro_arg(valor: Any, campo: str, aceitos: tuple[str, ...]) -> str | None:
+    """Valida um filtro opcional; ausente/`None` → `None` (sem filtro)."""
+    if valor is None:
+        return None
+    if not isinstance(valor, str) or valor not in aceitos:
+        raise _ChamadaInvalida(f"{campo} inválido: {valor!r}")
+    return valor
+
+
+def _filtros_total_periodo(argumentos: dict[str, Any]) -> tuple[str | None, str | None]:
+    """Extrai `(categoria, metodo_pagamento)` validados contra os enums."""
+    return (
+        _parse_filtro_arg(argumentos.get("categoria"), "categoria", _CATEGORIAS),
+        _parse_filtro_arg(
+            argumentos.get("metodo_pagamento"), "metodo_pagamento", _METODOS_PAGAMENTO
+        ),
+    )
+
+
 def _format_data(valor: date) -> str:
     """Formata uma data como `dd/mm/aaaa`."""
     return f"{valor:%d/%m/%Y}"
@@ -211,6 +257,8 @@ class ReadAgent:
                 if campo not in argumentos:
                     raise _ChamadaInvalida(f"argumento obrigatório ausente: {campo}")
                 _parse_data_arg(argumentos[campo])
+            if nome == "total_periodo":
+                _filtros_total_periodo(argumentos)
         elif nome == "ultimos_gastos":
             _parse_n_arg(argumentos.get("n"))
 
@@ -271,8 +319,21 @@ class ReadAgent:
                 inicio, fim = fim, inicio
             de, ate = _format_data(inicio), _format_data(fim)
             if nome == "total_periodo":
-                totais = total_periodo(registros, inicio, fim)
-                return f"💰 Total de {de} a {ate}: {format_totais(totais)}"
+                categoria, metodo_pagamento = _filtros_total_periodo(argumentos)
+                totais = total_periodo(
+                    registros,
+                    inicio,
+                    fim,
+                    categoria=categoria,
+                    metodo_pagamento=metodo_pagamento,
+                )
+                filtros: list[str] = []
+                if categoria is not None:
+                    filtros.append(f"categoria {categoria}")
+                if metodo_pagamento is not None:
+                    filtros.append(f"pagamento {metodo_pagamento}")
+                sufixo = f" ({', '.join(filtros)})" if filtros else ""
+                return f"💰 Total de {de} a {ate}{sufixo}: {format_totais(totais)}"
             if nome == "total_por_categoria":
                 grupos = total_por_categoria(registros, inicio, fim)
                 cabecalho = f"📊 Gastos por categoria de {de} a {ate}:"
