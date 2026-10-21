@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.2 — 2026-10-21
+
+- Consultas com filtro de categoria e forma de pagamento ("quanto gastei com alimentação
+  no pix?") (T19, #42).
+- Toque duplo em Confirmar responde "Registrado!" sem mostrar "expirou" (T20, #44).
+
 ## v0.2.1 — 2026-10-21
 
 - Formato padrão da planilha simplificado para 9 colunas: Data, Descrição, Categoria,
