@@ -8,7 +8,7 @@ import asyncio
 import html
 import logging
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -41,6 +41,9 @@ logger = logging.getLogger(__name__)
 
 # Comandos aceitos (o sufixo ``@NomeDoBot`` é ignorado).
 _COMANDOS = frozenset({"/start", "/help"})
+
+# Por quanto tempo um id confirmado é lembrado (evita "expirou" no toque duplo).
+CONFIRMADOS_TTL = timedelta(minutes=10)
 
 METODO_LABEL: dict[MetodoPagamento, str] = {
     MetodoPagamento.DINHEIRO: "dinheiro",
@@ -127,6 +130,8 @@ class BotService:
         self.allowed_user_ids = set(allowed_user_ids)
         self.timezone = timezone
         self.clock = clock if clock is not None else (lambda: datetime.now(ZoneInfo(timezone)))
+        # Ids confirmados com sucesso e o instante da confirmação (toque duplo).
+        self._confirmados: dict[str, datetime] = {}
 
     async def handle_update(self, update: dict[str, Any]) -> None:
         """Processa um Update do Telegram. Nunca propaga exceções."""
@@ -264,6 +269,9 @@ class BotService:
         message_id = message.get("message_id")
         pendente = self.store.get(pending_id)
         if pendente is None:
+            if acao == "confirm" and self._ja_confirmado(pending_id):
+                await self.telegram.answer_callback_query(callback_id, MSG_CALLBACK_SAVED)
+                return
             await self.telegram.answer_callback_query(callback_id, MSG_EXPIRED)
             await self.telegram.edit_message_text(chat_id, message_id, MSG_EXPIRED)
             return
@@ -303,8 +311,31 @@ class BotService:
             await self.telegram.answer_callback_query(callback_id, MSG_SAVE_FAILED)
             return
         self.store.delete(pending_id)
+        self._marcar_confirmado(pending_id)
         await self.telegram.edit_message_text(chat_id, message_id, format_registrado(pagamento))
         await self.telegram.answer_callback_query(callback_id, MSG_CALLBACK_SAVED)
+
+    def _purgar_confirmados(self, agora: datetime) -> None:
+        """Descarta os ids confirmados há mais de ``CONFIRMADOS_TTL``."""
+        vencidos = [
+            pending_id
+            for pending_id, quando in self._confirmados.items()
+            if agora - quando > CONFIRMADOS_TTL
+        ]
+        for pending_id in vencidos:
+            del self._confirmados[pending_id]
+
+    def _marcar_confirmado(self, pending_id: str) -> None:
+        """Lembra um id gravado com sucesso, com o instante da confirmação."""
+        agora = self.clock()
+        self._purgar_confirmados(agora)
+        self._confirmados[pending_id] = agora
+
+    def _ja_confirmado(self, pending_id: str) -> bool:
+        """True quando o id foi confirmado há no máximo ``CONFIRMADOS_TTL``."""
+        agora = self.clock()
+        self._purgar_confirmados(agora)
+        return pending_id in self._confirmados
 
     @staticmethod
     def _user_name(sender: dict[str, Any]) -> str:
