@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.1 — 2026-10-21
+
+- Formato padrão da planilha simplificado para 9 colunas: Data, Descrição, Categoria,
+  Forma de pagamento, Parcelas, Valor, Valor da parcela, Moeda e ID.
+
 ## v0.2.0 — 2026-10-10
 
 O projeto passa a se chamar **ai-agent-financas**: um agente de finanças pessoais **geral**,
