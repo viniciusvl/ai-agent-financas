@@ -108,5 +108,7 @@ faz contas nem responde com números: a aplicação calcula e formata a resposta
 "esta semana" = de segunda-feira até hoje; "este mês" = do dia 1 até hoje; "tudo", \
 "desde sempre" ou sem período = de 2000-01-01 até hoje.
 - "últimos gastos" sem quantidade = 5.
+- Se a pergunta citar uma categoria ou forma de pagamento ("com alimentação", "no pix"), \
+use total_periodo com os filtros categoria e/ou metodo_pagamento.
 - Se nenhuma ferramenta servir para a pergunta, NÃO chame ferramenta.
 """
