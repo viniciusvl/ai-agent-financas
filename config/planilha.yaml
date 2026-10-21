@@ -1,5 +1,5 @@
 # Formato da SUA planilha de gastos (fonte única: prompts + escritor + leitura).
-# EXEMPLO — ajuste aba, colunas, ordem e formatos para o modelo da sua planilha;
+# Modelo simples de controle de gastos. Para mudar o modelo, altere a planilha E este arquivo;
 # o agente confere o cabeçalho da aba contra este arquivo e não grava se houver divergência.
 #
 # campo: um de metodo_pagamento, data, hora, quant_parcelas, valor_compra, moeda, categoria,
@@ -12,31 +12,23 @@
 # formatação da coluna no Sheets (ex.: Formatar > Número > Data → dd/mm/aaaa).
 aba: Gastos
 colunas:
-  - nome: ID
-    campo: id
-    tipo: texto
   - nome: Data
     campo: data
     tipo: data
     formato: "%Y-%m-%d"
-  - nome: Hora
-    campo: hora
-    tipo: hora
-    formato: "%H:%M"
-    obrigatoria: false
   - nome: Descrição
     campo: descricao
     tipo: texto
   - nome: Categoria
     campo: categoria
     tipo: enum
-  - nome: Método de pagamento
+  - nome: Forma de pagamento
     campo: metodo_pagamento
     tipo: enum
   - nome: Parcelas
     campo: quant_parcelas
     tipo: inteiro
-  - nome: Valor da compra
+  - nome: Valor
     campo: valor_compra
     tipo: moeda
   - nome: Valor da parcela
@@ -45,14 +37,7 @@ colunas:
   - nome: Moeda
     campo: moeda
     tipo: enum
-  - nome: Usuário
-    campo: usuario
+  # Preenchido pelo bot: evita gravar o mesmo gasto duas vezes.
+  - nome: ID
+    campo: id
     tipo: texto
-  - nome: Registrado em
-    campo: registrado_em
-    tipo: datahora
-    formato: "%Y-%m-%d %H:%M"
-  - nome: Texto original
-    campo: texto_original
-    tipo: texto
-    obrigatoria: false
