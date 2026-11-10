@@ -36,7 +36,10 @@ class Settings(BaseSettings):
     # Schema da planilha (formato padrão)
     sheet_schema_path: str = "config/planilha.yaml"
 
-    # Google Sheets
+    # Google Sheets (modo multiusuário)
+    # Chaves Fernet separadas por vírgula (a primeira cifra, todas decifram).
+    # Vazio = modo multiusuário desligado.
+    token_encryption_keys: str = ""
     google_service_account_file: str = "secrets/google-service-account.json"
     google_sheet_id: str = ""
     google_worksheet_name: str = "Gastos"
