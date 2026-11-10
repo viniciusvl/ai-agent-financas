@@ -6,4 +6,5 @@ pydantic-settings>=2.7
 openai>=1.40
 gspread>=6.1
 google-auth>=2.30
+cryptography>=43
 pyyaml>=6.0
